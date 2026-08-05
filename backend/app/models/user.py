@@ -1,0 +1,39 @@
+import enum
+
+from sqlalchemy import String, Enum
+from sqlalchemy.orm import Mapped, mapped_column
+
+from app.core.database import Base
+from app.models.mixins import UUIDPKMixin, TimestampMixin
+
+
+class UserRole(str, enum.Enum):
+    reception = "reception"
+    doctor = "doctor"
+    nurse = "nurse"
+    lab = "lab"
+    pharmacy = "pharmacy"
+    admin = "admin"
+    patient = "patient"
+    store = "store"
+    store_manager = "store_manager"
+    super_admin = "super_admin"
+
+
+class User(UUIDPKMixin, TimestampMixin, Base):
+    __tablename__ = "users"
+
+    name: Mapped[str] = mapped_column(String(150), nullable=False)
+    username: Mapped[str | None] = mapped_column(String(100), unique=True, nullable=True)
+    email: Mapped[str] = mapped_column(String(150), unique=True, index=True, nullable=False)
+    hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
+    role: Mapped[UserRole] = mapped_column(String(50), nullable=False)
+    avatar: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    department: Mapped[str | None] = mapped_column(String(150), nullable=True)
+    branch: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    employee_id: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    phone: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    status: Mapped[str] = mapped_column(String(20), default="Active")
+    is_active: Mapped[bool] = mapped_column(default=True)
+    last_login: Mapped[str | None] = mapped_column(String(50), nullable=True)
+

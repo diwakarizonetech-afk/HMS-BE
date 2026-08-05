@@ -1,0 +1,6 @@
+{
+  "name": "Hospital Management System",
+  "description": "Enterprise Hospital Management System (HMS) featuring landing page, role-based authentication, reception dashboard, patient management, appointment scheduling, and IPD bed allocation.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
