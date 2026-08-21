@@ -59,6 +59,7 @@ async def lifespan(app: FastAPI):
                 ('module', 'VARCHAR(100)'), ('event_type', 'VARCHAR(100)'), ('sender_id', 'VARCHAR(100)'),
                 ('sender_name', 'VARCHAR(150)'), ('recipient_role', 'VARCHAR(50)'), ('related_record_id', 'VARCHAR(100)'),
                 ('priority', 'VARCHAR(20)'), ('status', 'VARCHAR(20)'),
+                ('branch', 'VARCHAR(200)'), ('follow_up_date', 'VARCHAR(50)'),
             ]:
                 conn.execute(sa.text(f"ALTER TABLE notifications ADD COLUMN IF NOT EXISTS {col_name} {col_type}"))
 
