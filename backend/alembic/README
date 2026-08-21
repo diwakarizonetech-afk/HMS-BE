@@ -1,0 +1,56 @@
+# Alembic Database Migrations
+
+This directory contains the database schema migrations for the **Hospital Management System (HMS)**.
+
+## Migration Structure
+
+- `env.py`: Runtime configuration script that imports `app.models` (registering all SQLAlchemy models on `Base.metadata`) and dynamically configures the database connection from `app.core.config.settings.DATABASE_URL`.
+- `script.py.mako`: Template used by Alembic when generating new migration revisions.
+- `versions/`: Chronological schema revisions.
+
+## Revision History Chain
+
+| # | Revision ID | Migration Summary | Key Additions / Modifications |
+|---|---|---|---|
+| 1 | `186c211a3eca` | Initial Schema | Users, patients, doctors, appointments, beds, IPD admissions, inventory items, POs, GRN, batches |
+| 2 | `297d312b4fdb` | Superadmin & Clinical | Hospital profiles, branches, specializations, vitals, nursing notes, consultation charges |
+| 3 | `3a8f9c1d5e2b` | Staff Shifts & Leaves | Staff shift rotations, leave management, extra staff audit fields |
+| 4 | `4b9f0d2e6f3a` | Clinical Models Update | Patient vitals extended fields, medication administration logs, ward transfers |
+| 5 | `5e9f8a7b6c5d` | Store & System Models | Central store inventory sync, vendor terms, store activity logs |
+| 6 | `6f0a1b2c3d4e` | Sync Models & Frontend | Aligning ORM column definitions with TypeScript interfaces |
+| 7 | `7a1c9e4f2b6d` | User Assigned Ward | Assigned ward scoping for nurse role |
+| 8 | `8b2d0e5f3a1c` | Sync Remaining Columns | Cross-table column constraints and indexes |
+| 9 | `9c3e1f6a4b2d` | Items & Medicines Schema | Synchronizing item master categories and medicine dosage/pricing fields |
+| 10 | `a1b2c3d4e5f6` | Department Columns | Missing department description, floor location, and bed counts |
+| 11 | `b1c2d3e4f5a6` | Emergency / ER Management | `emergency_encounters`, `er_assessments`, `er_procedures`, triage priority |
+| 12 | `c2d3e4f5a6b7` | ER Patient Snapshot | ER encounter snapshot data and emergency contact linkage |
+| 13 | `d3e4f5a6b7c8` | ER Encounter to Lab | Linkage between lab reports and emergency encounter ID |
+| 14 | `e4f5a6b7c8d9` | Emergency OPD Booking | Priority flags and emergency categorization for OPD bookings |
+| 15 | `f5a6b7c8d9e0` | Emergency Label to OPD | OPD consultation records emergency labeling |
+| 16 | `g6b7c8d9e0f1` | Booking Blood Group & Nurse | Blood group sync and nurse attribution columns |
+| 17 | `h7c8d9e0f1a2` | Billing System Models | `bills`, `bill_items`, `payment_collections`, `payment_transactions`, `discount_requests`, `refund_requests`, `bill_cancellations`, `supplier_payables`, `billing_audit_logs` |
+
+## Usage Commands
+
+```bash
+# Navigate to backend directory
+cd backend
+
+# Apply all pending migrations to the latest revision (head)
+alembic upgrade head
+
+# Rollback one migration step
+alembic downgrade -1
+
+# Check current revision status of the database
+alembic current
+
+# View full migration history
+alembic history --verbose
+
+# Stamp existing database schema without running SQL statements
+alembic stamp head
+
+# Auto-generate a new migration revision after modifying models in app/models/
+alembic revision --autogenerate -m "describe_migration_changes"
+```
