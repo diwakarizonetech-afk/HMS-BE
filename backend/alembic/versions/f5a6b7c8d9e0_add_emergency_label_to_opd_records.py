@@ -17,14 +17,23 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     conn = op.get_bind()
+    inspector = sa.inspect(conn)
+    existing_tables = set(inspector.get_table_names())
     for table in ("sample_collections", "lab_reports", "prescriptions"):
-        columns = {column["name"] for column in sa.inspect(conn).get_columns(table)}
+        if table not in existing_tables:
+            continue
+        columns = {column["name"] for column in inspector.get_columns(table)}
         if "is_emergency" not in columns:
             op.add_column(table, sa.Column("is_emergency", sa.Boolean(), nullable=False, server_default=sa.false()))
 
 
 def downgrade() -> None:
+    conn = op.get_bind()
+    inspector = sa.inspect(conn)
+    existing_tables = set(inspector.get_table_names())
     for table in ("prescriptions", "lab_reports", "sample_collections"):
-        columns = {column["name"] for column in sa.inspect(op.get_bind()).get_columns(table)}
+        if table not in existing_tables:
+            continue
+        columns = {column["name"] for column in inspector.get_columns(table)}
         if "is_emergency" in columns:
             op.drop_column(table, "is_emergency")

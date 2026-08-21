@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
-from app.core.database import engine
+from app.core.database import Base, engine
 import app.models  # noqa: F401 - ensures all models are registered on Base.metadata
 from app.seed.super_admin import seed_super_admin
 from app.seed.billing import seed_billing
@@ -34,6 +34,9 @@ from app.routers import (
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Alembic handles known migrations; create_all fills model tables missing from legacy migrations.
+    Base.metadata.create_all(bind=engine)
+
     # Ensure columns added to SQLAlchemy models exist on existing PostgreSQL tables
     try:
         import sqlalchemy as sa

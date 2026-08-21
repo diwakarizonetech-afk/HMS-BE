@@ -54,7 +54,7 @@ if os.getenv("HMS_CREATE_DATABASE", "").lower() in {"1", "true", "yes"}:
     except Exception as e:
         print(f"Database creation check notice: {e}")
 
-from app.core.database import SessionLocal
+from app.core.database import SessionLocal, engine, Base
 from app.core.security import hash_password
 import app.models  # noqa: F401 - ensures all models are registered
 from app.models.superadmin import HospitalProfile, Branch, WorkingHours, ShiftRotation, ConsultationCharge
@@ -1525,8 +1525,9 @@ def seed_beds(db) -> None:
 # Master Seeder Runner
 # ===========================================================================
 def seed_database() -> None:
-    # Schema is managed by Alembic. Run alembic upgrade head before seeding,
-    # especially on Render/managed PostgreSQL.
+    # Run alembic upgrade head before seeding. create_all fills model tables
+    # that are missing from older legacy migrations.
+    Base.metadata.create_all(bind=engine)
     seed_super_admin()
 
     db = SessionLocal()

@@ -150,6 +150,9 @@ def upgrade() -> None:
     # ------------------------------------------------------------------
     # 5. Add er_encounter_id to existing clinical / lab / pharmacy tables
     # ------------------------------------------------------------------
+    conn = op.get_bind()
+    inspector = sa.inspect(conn)
+    existing_tables = set(inspector.get_table_names())
     for table_name in [
         'patient_vitals',
         'nursing_notes',
@@ -157,14 +160,21 @@ def upgrade() -> None:
         'sample_collections',
         'prescriptions',
     ]:
-        op.add_column(
-            table_name,
-            sa.Column('er_encounter_id', sa.String(100), nullable=True)
-        )
+        if table_name not in existing_tables:
+            continue
+        columns = {column['name'] for column in inspector.get_columns(table_name)}
+        if 'er_encounter_id' not in columns:
+            op.add_column(
+                table_name,
+                sa.Column('er_encounter_id', sa.String(100), nullable=True)
+            )
 
 
 def downgrade() -> None:
     # Remove er_encounter_id from existing tables
+    conn = op.get_bind()
+    inspector = sa.inspect(conn)
+    existing_tables = set(inspector.get_table_names())
     for table_name in [
         'patient_vitals',
         'nursing_notes',
@@ -172,7 +182,11 @@ def downgrade() -> None:
         'sample_collections',
         'prescriptions',
     ]:
-        op.drop_column(table_name, 'er_encounter_id')
+        if table_name not in existing_tables:
+            continue
+        columns = {column['name'] for column in inspector.get_columns(table_name)}
+        if 'er_encounter_id' in columns:
+            op.drop_column(table_name, 'er_encounter_id')
 
     # Drop new tables
     op.drop_index('ix_er_procedures_encounter_id', table_name='er_procedures')
