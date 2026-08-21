@@ -135,6 +135,44 @@ export interface SupplierPayable {
   branch: string;
 }
 
+export interface SupplierPayablesAnalytics {
+  period: 'day' | 'month' | 'year' | string;
+  start_date: string;
+  end_date: string;
+  totals: {
+    purchase_value: number;
+    payable_invoice_total: number;
+    paid_total: number;
+    outstanding_total: number;
+    category_revenue_total: number;
+    purchase_count: number;
+    payable_count: number;
+  };
+  category_revenue: Array<{
+    category: string;
+    item_count: number;
+    quantity_sold: number;
+    revenue: number;
+  }>;
+  purchase_details: Array<{
+    source: string;
+    reference: string;
+    invoice_number?: string;
+    supplier_name: string;
+    purchase_date: string;
+    item_count: number;
+    items: string;
+    amount: number;
+    branch?: string;
+  }>;
+  payables: SupplierPayable[];
+  daily_summary: Array<{
+    date: string;
+    purchase_value: number;
+    payable_value: number;
+    revenue_value: number;
+  }>;
+}
 export interface BillingAuditLog {
   id?: string;
   transaction_id: string;
@@ -179,3 +217,4 @@ export interface CashierSummary {
   closing_cash: number;
   transaction_count: number;
 }
+

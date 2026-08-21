@@ -1,6 +1,6 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 import json
-from typing import List, Optional
+from typing import Any, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 import razorpay
@@ -21,6 +21,9 @@ from app.models.billing import (
     RefundRequest,
     SupplierPayable,
 )
+from app.models.goods_receipt import GoodsReceipt, GRNItem
+from app.models.pharmacy import Medicine, PharmacyPurchase, POSInvoice, Prescription
+from app.models.purchase_order import PurchaseOrder
 from app.schemas.billing import (
     BillCancellationSchema,
     BillCreateSchema,
@@ -963,6 +966,244 @@ def get_supplier_payables(db: Session = Depends(get_db)):
     return db.query(SupplierPayable).order_by(SupplierPayable.created_at.desc()).all()
 
 
+def _parse_any_date(value: Any, fallback: datetime | None = None) -> datetime:
+    if isinstance(value, datetime):
+        return value
+    raw = str(value or "").strip()
+    for fmt in ("%Y-%m-%d", "%d-%m-%Y", "%Y/%m/%d", "%d/%m/%Y", "%Y-%m-%d %H:%M:%S"):
+        try:
+            return datetime.strptime(raw[:19], fmt)
+        except ValueError:
+            pass
+    try:
+        return datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except Exception:
+        return fallback or _now()
+
+
+def _period_bounds(period: str, date_value: str | None) -> tuple[datetime, datetime, str]:
+    base = _parse_any_date(date_value, _now()) if date_value else _now()
+    key = (period or "month").lower()
+    if key == "day":
+        start = datetime(base.year, base.month, base.day)
+        end = datetime(base.year + (1 if base.month == 12 and base.day == 31 else 0), 1 if base.month == 12 and base.day == 31 else base.month, 1 if base.day == 31 and base.month == 12 else base.day)
+        end = start.replace(hour=23, minute=59, second=59, microsecond=999999)
+        label = start.strftime("%Y-%m-%d")
+    elif key == "year":
+        start = datetime(base.year, 1, 1)
+        end = datetime(base.year, 12, 31, 23, 59, 59, 999999)
+        label = str(base.year)
+    else:
+        start = datetime(base.year, base.month, 1)
+        if base.month == 12:
+            end = datetime(base.year, 12, 31, 23, 59, 59, 999999)
+        else:
+            end = datetime(base.year, base.month + 1, 1)
+            end = end.replace() - timedelta(microseconds=1)
+        key = "month"
+        label = start.strftime("%Y-%m")
+    return start, end, label
+
+
+def _in_period(value: Any, start: datetime, end: datetime, fallback: datetime | None = None) -> bool:
+    parsed = _parse_any_date(value, fallback)
+    return start <= parsed <= end
+
+
+def _branch_matches(row_branch: str | None, branch: str | None) -> bool:
+    if not branch or branch.lower() == "all":
+        return True
+    rb = (row_branch or "Main Branch").strip().lower()
+    br = branch.strip().lower()
+    short = br.replace("branch", "").replace("hospital", "").replace("cauvery", "").replace("care", "").strip()
+    return rb == br or (short and short in rb)
+
+
+def _num(value: Any) -> float:
+    try:
+        return round(float(value or 0), 2)
+    except Exception:
+        return 0.0
+
+
+def _item_name(item: Any) -> str:
+    if not isinstance(item, dict):
+        return str(item or "Medicine")
+    return str(item.get("medicineName") or item.get("itemName") or item.get("medicine_name") or item.get("name") or item.get("item_name") or "Medicine")
+
+
+def _item_qty(item: Any) -> int:
+    if not isinstance(item, dict):
+        return 1
+    try:
+        return int(item.get("quantity") or item.get("qty") or 1)
+    except Exception:
+        return 1
+
+
+def _item_total(item: Any) -> float:
+    if not isinstance(item, dict):
+        return 0.0
+    direct = item.get("total") or item.get("totalAmount") or item.get("price")
+    if direct not in (None, ""):
+        return _num(direct)
+    return _num(_item_qty(item) * _num(item.get("unitPrice") or item.get("unit_price") or item.get("sellingPrice") or item.get("rate")))
+
+
+@router.get("/supplier-payables/analytics")
+def get_supplier_payable_analytics(
+    period: str = "month",
+    date: str | None = None,
+    branch: str | None = None,
+    db: Session = Depends(get_db),
+):
+    start, end, label = _period_bounds(period, date)
+
+    payables = [p for p in db.query(SupplierPayable).all() if _branch_matches(p.branch, branch)]
+    period_payables = [p for p in payables if _in_period(p.purchase_date, start, end, p.created_at)]
+
+    pharmacy_purchases = [p for p in db.query(PharmacyPurchase).all() if _branch_matches(p.branch, branch) and _in_period(p.purchase_date, start, end, p.created_at)]
+    purchase_orders = [p for p in db.query(PurchaseOrder).all() if _branch_matches(p.branch, branch) and _in_period(p.purchase_date, start, end, p.created_at)]
+    goods_receipts = [g for g in db.query(GoodsReceipt).all() if _branch_matches(g.branch, branch) and _in_period(g.received_date, start, end, g.created_at)]
+
+    medicine_lookup = {m.name.lower(): m.category for m in db.query(Medicine).all() if m.name}
+    medicine_code_lookup = {m.code.lower(): m.category for m in db.query(Medicine).all() if m.code}
+
+    purchase_details: list[dict[str, Any]] = []
+    for pur in pharmacy_purchases:
+        items = pur.items if isinstance(pur.items, list) else []
+        purchase_details.append({
+            "source": "Pharmacy Purchase",
+            "reference": pur.purchase_number,
+            "invoice_number": pur.invoice_number,
+            "supplier_name": pur.supplier_name,
+            "purchase_date": pur.purchase_date,
+            "item_count": len(items),
+            "items": ", ".join(_item_name(item) for item in items[:6]) or "Pharmacy medicines",
+            "amount": _num(pur.total_amount),
+            "branch": pur.branch or "Main Branch",
+        })
+
+    po_total_by_number = {po.po_number: _num(po.total_amount) for po in purchase_orders}
+    for grn in goods_receipts:
+        items = db.query(GRNItem).filter(GRNItem.goods_receipt_id == grn.id).all()
+        fallback_total = sum((item.accepted_quantity or item.received_quantity or 0) for item in items)
+        purchase_details.append({
+            "source": "Store Goods Receipt",
+            "reference": grn.grn_number,
+            "invoice_number": grn.po_number or grn.grn_number,
+            "supplier_name": grn.vendor_name,
+            "purchase_date": grn.received_date,
+            "item_count": len(items),
+            "items": ", ".join(item.item_name for item in items[:6]) or "Store items",
+            "amount": po_total_by_number.get(grn.po_number or "", float(fallback_total)),
+            "branch": grn.branch or "Main Branch",
+        })
+
+    # Include approved purchase orders even if a GRN has not been entered yet.
+    received_po_numbers = {g.po_number for g in goods_receipts if g.po_number}
+    for po in purchase_orders:
+        if po.po_number in received_po_numbers:
+            continue
+        purchase_details.append({
+            "source": "Store Purchase Order",
+            "reference": po.po_number,
+            "invoice_number": po.po_number,
+            "supplier_name": po.vendor_name,
+            "purchase_date": po.purchase_date,
+            "item_count": len(po.items or []),
+            "items": ", ".join(item.item_name for item in (po.items or [])[:6]) or "Store order items",
+            "amount": _num(po.total_amount),
+            "branch": po.branch or "Main Branch",
+        })
+
+    category_map: dict[str, dict[str, Any]] = {}
+
+    def add_category_revenue(category: str, item_name: str, qty: int, amount: float) -> None:
+        cat = category or "General"
+        row = category_map.setdefault(cat, {"category": cat, "item_count": 0, "quantity_sold": 0, "revenue": 0.0})
+        row["item_count"] += 1 if item_name else 0
+        row["quantity_sold"] += qty
+        row["revenue"] = _num(row["revenue"] + amount)
+
+    pharmacy_bills = db.query(Bill).options(selectinload(Bill.items)).filter(or_(Bill.bill_type == "Pharmacy", Bill.bill_type == "PHARMACY")).all()
+    for bill in pharmacy_bills:
+        if not _branch_matches(bill.branch, branch) or not _in_period(bill.bill_date, start, end, bill.created_at):
+            continue
+        for item in bill.items:
+            name = item.service_name or "Medicine"
+            cat = medicine_lookup.get(name.lower(), item.category or "Pharmacy")
+            add_category_revenue(cat, name, int(item.quantity or 1), _num(item.net_amount or item.gross_amount))
+
+    pos_invoices = [inv for inv in db.query(POSInvoice).all() if _branch_matches(inv.branch, branch) and _in_period(inv.date, start, end, inv.created_at)]
+    for inv in pos_invoices:
+        for item in (inv.items if isinstance(inv.items, list) else []):
+            name = _item_name(item)
+            cat = medicine_lookup.get(name.split(" (")[0].lower(), medicine_lookup.get(name.lower(), "General"))
+            add_category_revenue(cat, name, _item_qty(item), _item_total(item))
+
+    prescriptions = [rx for rx in db.query(Prescription).all() if _branch_matches(rx.branch, branch) and _in_period(rx.visit_date, start, end, rx.created_at)]
+    for rx in prescriptions:
+        for item in (rx.items if isinstance(rx.items, list) else []):
+            name = _item_name(item)
+            cat = medicine_lookup.get(name.lower(), medicine_code_lookup.get(str(item.get("medicineId", "")).lower() if isinstance(item, dict) else "", "General"))
+            add_category_revenue(cat, name, _item_qty(item), _item_total(item))
+
+    category_revenue = sorted(category_map.values(), key=lambda row: row["revenue"], reverse=True)
+    total_category_revenue = _num(sum(row["revenue"] for row in category_revenue))
+    total_purchase_value = _num(sum(row["amount"] for row in purchase_details))
+    payable_invoice_total = _num(sum(p.invoice_amount or 0 for p in period_payables))
+    paid_total = _num(sum(p.paid_amount or 0 for p in period_payables))
+    outstanding_total = _num(sum(p.outstanding_amount or 0 for p in period_payables))
+
+    daily_map: dict[str, dict[str, Any]] = {}
+    for row in purchase_details:
+        day = _parse_any_date(row["purchase_date"]).strftime("%Y-%m-%d")
+        entry = daily_map.setdefault(day, {"date": day, "purchase_value": 0.0, "revenue": 0.0, "outstanding": 0.0})
+        entry["purchase_value"] = _num(entry["purchase_value"] + row["amount"])
+    for bill in pharmacy_bills:
+        if _branch_matches(bill.branch, branch) and _in_period(bill.bill_date, start, end, bill.created_at):
+            day = _parse_any_date(bill.bill_date, bill.created_at).strftime("%Y-%m-%d")
+            entry = daily_map.setdefault(day, {"date": day, "purchase_value": 0.0, "revenue": 0.0, "outstanding": 0.0})
+            entry["revenue"] = _num(entry["revenue"] + _num(bill.net_amount))
+    for p in period_payables:
+        day = _parse_any_date(p.purchase_date, p.created_at).strftime("%Y-%m-%d")
+        entry = daily_map.setdefault(day, {"date": day, "purchase_value": 0.0, "revenue": 0.0, "outstanding": 0.0})
+        entry["outstanding"] = _num(entry["outstanding"] + _num(p.outstanding_amount))
+
+    return {
+        "period": period,
+        "period_label": label,
+        "branch": branch or "All",
+        "totals": {
+            "purchase_value": total_purchase_value,
+            "payable_invoice_total": payable_invoice_total,
+            "paid_total": paid_total,
+            "outstanding_total": outstanding_total,
+            "category_revenue_total": total_category_revenue,
+            "purchase_count": len(purchase_details),
+            "payable_count": len(period_payables),
+        },
+        "category_revenue": category_revenue,
+        "purchase_details": sorted(purchase_details, key=lambda row: row["purchase_date"], reverse=True),
+        "payables": [
+            {
+                "supplier_name": p.supplier_name,
+                "invoice_number": p.invoice_number,
+                "purchase_date": p.purchase_date,
+                "invoice_amount": _num(p.invoice_amount),
+                "paid_amount": _num(p.paid_amount),
+                "outstanding_amount": _num(p.outstanding_amount),
+                "payment_status": p.payment_status,
+                "module_source": p.module_source,
+                "branch": p.branch,
+            }
+            for p in period_payables
+        ],
+        "daily_summary": sorted(daily_map.values(), key=lambda row: row["date"]),
+    }
+
+
 @router.post("/supplier-payables", response_model=SupplierPayableSchema, status_code=status.HTTP_201_CREATED)
 def create_supplier_payable(payload: SupplierPayableSchema, db: Session = Depends(get_db)):
     payable = SupplierPayable(
@@ -1030,3 +1271,4 @@ def pay_supplier(invoice_number: str, payload: SupplierPaymentSchema, db: Sessio
 @router.get("/audit-logs", response_model=List[BillingAuditLogSchema])
 def get_billing_audit_logs(db: Session = Depends(get_db)):
     return db.query(BillingAuditLog).order_by(BillingAuditLog.created_at.desc()).all()
+

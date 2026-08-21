@@ -2382,6 +2382,15 @@ export async function fetchSupplierPayablesApi(filters?: { status?: string; modu
   return apiRequest<any[]>(url);
 }
 
+export async function fetchSupplierPayablesAnalyticsApi(filters?: { period?: string; date?: string; branch?: string }): Promise<any> {
+  const queryParams = new URLSearchParams();
+  if (filters?.period) queryParams.append('period', filters.period);
+  if (filters?.date) queryParams.append('date', filters.date);
+  if (filters?.branch && filters.branch.toLowerCase() !== 'all') queryParams.append('branch', filters.branch);
+  const queryStr = queryParams.toString();
+  const url = queryStr ? `/billing/supplier-payables/analytics?${queryStr}` : '/billing/supplier-payables/analytics';
+  return apiRequest<any>(url);
+}
 export async function createSupplierPayableApi(payload: any): Promise<any> {
   return apiRequest('/billing/supplier-payables', {
     method: 'POST',
@@ -2559,3 +2568,4 @@ export async function initiateERToIPDApi(id: string, data: {
     body: JSON.stringify(data),
   });
 }
+
