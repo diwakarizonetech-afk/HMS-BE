@@ -75,7 +75,7 @@ async def lifespan(app: FastAPI):
             ]:
                 conn.execute(sa.text(f"ALTER TABLE departments ADD COLUMN IF NOT EXISTS {col_name} {col_type}"))
 
-            for tbl in ['appointments', 'walkin_tokens', 'queue_items', 'doctors', 'patients', 'ipd_admissions', 'emergency_encounters']:
+            for tbl in ['appointments', 'walkin_tokens', 'queue_items', 'doctors', 'patients', 'ipd_admissions', 'emergency_encounters', 'patient_vitals', 'nursing_notes', 'medication_logs', 'ward_transfers']:
                 conn.execute(sa.text(f"ALTER TABLE {tbl} ADD COLUMN IF NOT EXISTS branch VARCHAR(200)"))
 
             conn.execute(sa.text("ALTER TABLE ipd_admissions ADD COLUMN IF NOT EXISTS attending_nurse VARCHAR(150)"))
@@ -164,6 +164,10 @@ async def lifespan(app: FastAPI):
             conn.execute(sa.text("UPDATE doctors SET branch = 'Main Branch' WHERE branch IS NULL OR branch = ''"))
             conn.execute(sa.text("UPDATE patients SET branch = 'Main Branch' WHERE branch IS NULL OR branch = ''"))
             conn.execute(sa.text("UPDATE ipd_admissions SET branch = 'Main Branch' WHERE branch IS NULL OR branch = ''"))
+            conn.execute(sa.text("UPDATE patient_vitals SET branch = 'Main Branch' WHERE branch IS NULL OR branch = ''"))
+            conn.execute(sa.text("UPDATE nursing_notes SET branch = 'Main Branch' WHERE branch IS NULL OR branch = ''"))
+            conn.execute(sa.text("UPDATE medication_logs SET branch = 'Main Branch' WHERE branch IS NULL OR branch = ''"))
+            conn.execute(sa.text("UPDATE ward_transfers SET branch = 'Main Branch' WHERE branch IS NULL OR branch = ''"))
 
             # Remove dummy seed queue items if present
             conn.execute(sa.text("DELETE FROM queue_items WHERE patient_name IN ('Rahul Verma', 'Priya Sharma', 'Amitabh Bachchan')"))
