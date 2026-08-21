@@ -17,6 +17,8 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     conn = op.get_bind()
+    inspector = sa.inspect(conn)
+    existing_tables = set(inspector.get_table_names())
     for table, columns in {
         "appointments": [
             sa.Column("blood_group", sa.String(10), nullable=True),
@@ -27,10 +29,11 @@ def upgrade() -> None:
             sa.Column("assigned_nurse", sa.String(150), nullable=True),
         ],
     }.items():
-        existing = {column["name"] for column in sa.inspect(conn).get_columns(table)}
-        for column in columns:
-            if column.name not in existing:
-                op.add_column(table, column)
+        if table in existing_tables:
+            existing = {column["name"] for column in inspector.get_columns(table)}
+            for column in columns:
+                if column.name not in existing:
+                    op.add_column(table, column)
 
 
 def downgrade() -> None:

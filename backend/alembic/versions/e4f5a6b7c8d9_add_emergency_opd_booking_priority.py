@@ -17,10 +17,13 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def _add_columns(table: str, columns: list[sa.Column]) -> None:
     conn = op.get_bind()
-    existing = {column["name"] for column in sa.inspect(conn).get_columns(table)}
-    for column in columns:
-        if column.name not in existing:
-            op.add_column(table, column)
+    inspector = sa.inspect(conn)
+    existing_tables = set(inspector.get_table_names())
+    if table in existing_tables:
+        existing = {column["name"] for column in inspector.get_columns(table)}
+        for column in columns:
+            if column.name not in existing:
+                op.add_column(table, column)
 
 
 def upgrade() -> None:

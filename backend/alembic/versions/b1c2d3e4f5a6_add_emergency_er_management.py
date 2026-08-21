@@ -34,31 +34,19 @@ def upgrade() -> None:
         return
 
     # ------------------------------------------------------------------
-    # 1. Create enum types (Postgres requires named enum types)
+    # 1. Create enum types safely (Postgres requires named enum types)
     # ------------------------------------------------------------------
-    op.execute(
-        "CREATE TYPE er_arrival_mode AS ENUM ('Walk-in', 'Ambulance')"
-    )
-    op.execute(
-        "CREATE TYPE er_emergency_type AS ENUM ("
-        "'Trauma', 'Cardiac', 'Respiratory', 'Neurological', 'Obstetric', "
-        "'Pediatric', 'Poisoning', 'Burns', 'Orthopedic', 'General Emergency', 'Other')"
-    )
-    op.execute(
-        "CREATE TYPE er_triage_status AS ENUM ("
-        "'Pending Triage', 'Priority 1 (Red - Critical)', "
-        "'Priority 2 (Yellow - Urgent)', 'Priority 3 (Green - Non-Urgent)')"
-    )
-    op.execute(
-        "CREATE TYPE er_status AS ENUM ("
-        "'Registered', 'Waiting for Triage', 'Triaged', 'Waiting for Doctor', "
-        "'Under Doctor Assessment', 'Observation', 'IPD Admission Pending', "
-        "'Admitted', 'Discharged', 'LAMA', 'Referred', 'Transferred', 'Completed')"
-    )
-    op.execute(
-        "CREATE TYPE er_disposition AS ENUM ("
-        "'Pending', 'Discharge', 'Observation', 'IPD', 'Transferred')"
-    )
+    for enum_sql in [
+        "DO $$ BEGIN CREATE TYPE er_arrival_mode AS ENUM ('Walk-in', 'Ambulance'); EXCEPTION WHEN duplicate_object THEN null; END $$;",
+        "DO $$ BEGIN CREATE TYPE er_emergency_type AS ENUM ('Trauma', 'Cardiac', 'Respiratory', 'Neurological', 'Obstetric', 'Pediatric', 'Poisoning', 'Burns', 'Orthopedic', 'General Emergency', 'Other'); EXCEPTION WHEN duplicate_object THEN null; END $$;",
+        "DO $$ BEGIN CREATE TYPE er_triage_status AS ENUM ('Pending Triage', 'Priority 1 (Red - Critical)', 'Priority 2 (Yellow - Urgent)', 'Priority 3 (Green - Non-Urgent)'); EXCEPTION WHEN duplicate_object THEN null; END $$;",
+        "DO $$ BEGIN CREATE TYPE er_status AS ENUM ('Registered', 'Waiting for Triage', 'Triaged', 'Waiting for Doctor', 'Under Doctor Assessment', 'Observation', 'IPD Admission Pending', 'Admitted', 'Discharged', 'LAMA', 'Referred', 'Transferred', 'Completed'); EXCEPTION WHEN duplicate_object THEN null; END $$;",
+        "DO $$ BEGIN CREATE TYPE er_disposition AS ENUM ('Pending', 'Discharge', 'Observation', 'IPD', 'Transferred'); EXCEPTION WHEN duplicate_object THEN null; END $$;",
+    ]:
+        try:
+            op.execute(enum_sql)
+        except Exception:
+            pass
 
     # ------------------------------------------------------------------
     # 2. emergency_encounters
@@ -150,6 +138,12 @@ def upgrade() -> None:
     # ------------------------------------------------------------------
     # 5. Add er_encounter_id to existing clinical / lab / pharmacy tables
     # ------------------------------------------------------------------
+    # 5. Add er_encounter_id to existing clinical / lab / pharmacy tables
+    # ------------------------------------------------------------------
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    existing_tables = set(inspector.get_table_names())
+
     for table_name in [
         'patient_vitals',
         'nursing_notes',
@@ -157,13 +151,20 @@ def upgrade() -> None:
         'sample_collections',
         'prescriptions',
     ]:
-        op.add_column(
-            table_name,
-            sa.Column('er_encounter_id', sa.String(100), nullable=True)
-        )
+        if table_name in existing_tables:
+            existing_cols = {col['name'] for col in inspector.get_columns(table_name)}
+            if 'er_encounter_id' not in existing_cols:
+                op.add_column(
+                    table_name,
+                    sa.Column('er_encounter_id', sa.String(100), nullable=True)
+                )
 
 
 def downgrade() -> None:
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    existing_tables = set(inspector.get_table_names())
+
     # Remove er_encounter_id from existing tables
     for table_name in [
         'patient_vitals',
@@ -172,7 +173,10 @@ def downgrade() -> None:
         'sample_collections',
         'prescriptions',
     ]:
-        op.drop_column(table_name, 'er_encounter_id')
+        if table_name in existing_tables:
+            existing_cols = {col['name'] for col in inspector.get_columns(table_name)}
+            if 'er_encounter_id' in existing_cols:
+                op.drop_column(table_name, 'er_encounter_id')
 
     # Drop new tables
     op.drop_index('ix_er_procedures_encounter_id', table_name='er_procedures')
