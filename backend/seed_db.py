@@ -972,6 +972,10 @@ def seed_users(db) -> None:
                 )
                 db.add(doc)
 
+    # Flush these users/doctors before the dedicated doctor availability seed runs.
+    # Without this, the same doctor email can be inserted twice in one pending unit of work.
+    db.flush()
+
 
 # ===========================================================================
 # 7. Comprehensive Doctor Profiles & Availability Seeder
