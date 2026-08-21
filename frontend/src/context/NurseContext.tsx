@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { VitalSign, WardTransfer, NursingNote, MedicationAdmin, NurseActivity } from '../types/nurse';
 import {
   fetchVitalsApi,
@@ -54,7 +54,15 @@ interface NurseContextType {
 
   // Activities & Audits
   activities: NurseActivity[];
-  logActivity: (action: string, description: string, patientUhid?: string, branch?: string) => void;
+  logActivity: (
+    activityType: NurseActivity['activityType'],
+    patientName: string,
+    patientUhid: string,
+    details: string,
+    nurseName?: string,
+    status?: NurseActivity['status'],
+    branch?: string
+  ) => void;
   clearActivities: () => void;
 }
 
@@ -92,6 +100,11 @@ export const NurseProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     } catch { /* proceed */ }
   }, []);
 
+  const hmsRef = useRef({ patients, ipdAdmissions, beds, appointments });
+  useEffect(() => {
+    hmsRef.current = { patients, ipdAdmissions, beds, appointments };
+  }, [patients, ipdAdmissions, beds, appointments]);
+
   const loadData = async () => {
     const token = localStorage.getItem('hms_token');
     if (!token) return;
@@ -111,13 +124,14 @@ export const NurseProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const getPatientBranch = (uhid: string) => {
       if (!uhid) return '';
       const norm = uhid.toLowerCase().trim();
-      const p = (patients || []).find((pat) => (pat.uhid || '').toLowerCase().trim() === norm);
+      const { patients: curPatients, ipdAdmissions: curAdmissions, beds: curBeds, appointments: curAppointments } = hmsRef.current;
+      const p = (curPatients || []).find((pat) => (pat.uhid || '').toLowerCase().trim() === norm);
       if (p?.branch) return p.branch;
-      const adm = (ipdAdmissions || []).find((a) => (a.patientUhid || '').toLowerCase().trim() === norm);
+      const adm = (curAdmissions || []).find((a) => (a.patientUhid || '').toLowerCase().trim() === norm);
       if (adm?.branch) return adm.branch;
-      const b = (beds || []).find((bed) => ((bed.currentPatientUhid || (bed as any).current_patient_uhid) || '').toLowerCase().trim() === norm);
+      const b = (curBeds || []).find((bed) => ((bed.currentPatientUhid || (bed as any).current_patient_uhid) || '').toLowerCase().trim() === norm);
       if (b?.branch) return b.branch;
-      const apt = (appointments || []).find((a) => (a.patientUhid || '').toLowerCase().trim() === norm);
+      const apt = (curAppointments || []).find((a) => (a.patientUhid || '').toLowerCase().trim() === norm);
       if (apt?.branch) return apt.branch;
       return '';
     };
@@ -263,13 +277,17 @@ export const NurseProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   useEffect(() => {
     loadData();
-    const interval = setInterval(loadData, 5000);
+    const interval = setInterval(() => {
+      if (!document.hidden) {
+        loadData();
+      }
+    }, 30000);
     window.addEventListener('hms_auth_change', loadData);
     return () => {
       clearInterval(interval);
       window.removeEventListener('hms_auth_change', loadData);
     };
-  }, [patients, beds, ipdAdmissions, appointments, selectedBranch]);
+  }, [selectedBranch]);
 
   // Activity Helper
   const logActivity = (
@@ -278,7 +296,8 @@ export const NurseProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     patientUhid: string,
     details: string,
     nurseName: string = 'Nurse',
-    status: NurseActivity['status'] = 'Completed'
+    status: NurseActivity['status'] = 'Completed',
+    branch?: string
   ) => {
     const newAct: NurseActivity = {
       id: `act-${Date.now()}`,
@@ -289,8 +308,13 @@ export const NurseProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       timeAgo: 'Just now',
       nurseName,
       status,
+      branch: branch || (selectedBranch !== 'All' ? selectedBranch : undefined),
     };
     setActivities((prev) => [newAct, ...prev]);
+  };
+
+  const clearActivities = () => {
+    setActivities([]);
   };
 
   // 1. Vital Signs CRUD
@@ -638,6 +662,8 @@ export const NurseProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         deleteMedicationAdmin,
         administerMedication,
         activities,
+        logActivity,
+        clearActivities,
         selectedBranch,
         setSelectedBranch,
       }}

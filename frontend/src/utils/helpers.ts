@@ -172,6 +172,7 @@ export function isPatientAllocatedToBranch(
     vitals?: any[];
     notes?: any[];
     medications?: any[];
+    erVisits?: any[];
   }
 ): boolean {
   if (!activeBranch || activeBranch === 'All' || activeBranch.toLowerCase() === 'all') {
@@ -199,6 +200,9 @@ export function isPatientAllocatedToBranch(
     return true;
   }
   if (contextData?.medications?.some((m) => (m.patientUhid || m.patient_uhid || '').toLowerCase().trim() === normUhid && matchBranch(m.branch, activeBranch))) {
+    return true;
+  }
+  if (contextData?.erVisits?.some((er) => (er.patient_uhid || er.patientUhid || '').toLowerCase().trim() === normUhid && matchBranch(er.branch, activeBranch))) {
     return true;
   }
 

@@ -457,6 +457,8 @@ export async function fetchAppointmentsApi(branch?: string, patientUhid?: string
   const list = await apiRequest<any[]>(url);
   return list.map((a) => ({
     id: a.id,
+    patientId: a.patient_id || a.patientId || '',
+    patient_id: a.patient_id || a.patientId || '',
     patientUhid: a.patient_uhid || a.patientUhid || '',
     patientName: a.patient_name || a.patientName || '',
     patientMobile: a.patient_mobile || a.patientMobile || '',
@@ -2055,26 +2057,31 @@ export async function createOpdLabOrderApi(payload: {
   });
 }
 
-const buildLabQuery = (params: Record<string, string | undefined>) => {
-  const query = new URLSearchParams();
-  Object.entries(params).forEach(([key, value]) => {
-    if (value) query.set(key, value);
-  });
-  const qs = query.toString();
-  return qs ? `?${qs}` : '';
-};
-
-export async function fetchLabSampleCollectionsApi(branch?: string): Promise<any[]> {
-  return apiRequest<any[]>(`/lab/sample-collections${buildLabQuery({ branch })}`);
+// --- Lab Fetch APIs ---
+export async function fetchLabSampleCollectionsApi(branch?: string, patientUhid?: string): Promise<any[]> {
+  const params = new URLSearchParams();
+  if (branch && branch.toLowerCase() !== 'all') params.set('branch', branch);
+  if (patientUhid) params.set('patient_uhid', patientUhid);
+  const qs = params.toString();
+  return apiRequest<any[]>(`/lab/sample-collections${qs ? `?${qs}` : ''}`).catch(() => []);
 }
 
-export async function fetchLabResultsApi(patientUhid?: string, branch?: string): Promise<any[]> {
-  return apiRequest<any[]>(`/lab/results${buildLabQuery({ patient_uhid: patientUhid, branch })}`);
+export async function fetchLabResultsApi(branch?: string, patientUhid?: string): Promise<any[]> {
+  const params = new URLSearchParams();
+  if (branch && branch.toLowerCase() !== 'all') params.set('branch', branch);
+  if (patientUhid) params.set('patient_uhid', patientUhid);
+  const qs = params.toString();
+  return apiRequest<any[]>(`/lab/results${qs ? `?${qs}` : ''}`).catch(() => []);
 }
 
-export async function fetchLabReportsApi(patientUhid?: string, branch?: string): Promise<any[]> {
-  return apiRequest<any[]>(`/lab/reports${buildLabQuery({ patient_uhid: patientUhid, branch })}`);
+export async function fetchLabReportsApi(branch?: string, patientUhid?: string): Promise<any[]> {
+  const params = new URLSearchParams();
+  if (branch && branch.toLowerCase() !== 'all') params.set('branch', branch);
+  if (patientUhid) params.set('patient_uhid', patientUhid);
+  const qs = params.toString();
+  return apiRequest<any[]>(`/lab/reports${qs ? `?${qs}` : ''}`).catch(() => []);
 }
+
 // --- Pharmacy Categories ---
 export async function fetchCategoriesApi(branch?: string): Promise<any[]> {
   const url = branch ? `/pharmacy/categories?branch=${encodeURIComponent(branch)}` : '/pharmacy/categories';
@@ -2391,6 +2398,7 @@ export async function fetchSupplierPayablesAnalyticsApi(filters?: { period?: str
   const url = queryStr ? `/billing/supplier-payables/analytics?${queryStr}` : '/billing/supplier-payables/analytics';
   return apiRequest<any>(url);
 }
+
 export async function createSupplierPayableApi(payload: any): Promise<any> {
   return apiRequest('/billing/supplier-payables', {
     method: 'POST',
@@ -2568,4 +2576,3 @@ export async function initiateERToIPDApi(id: string, data: {
     body: JSON.stringify(data),
   });
 }
-

@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useER } from '../../../context/ERContext';
 import { useNurse } from '../../../context/NurseContext';
 import { useAuth } from '../../../context/AuthContext';
 import { TriageStatus, ERVitalSign } from '../../../types/er';
 import { matchBranch } from '../../../utils/helpers';
+import { NurseBranchSelector } from '../../../components/nurse/NurseBranchSelector';
 import {
   HeartPulse,
   Siren,
@@ -15,12 +17,17 @@ import {
   Pill,
   Activity,
   UserCheck,
+  Filter,
+  Users,
+  Search,
 } from 'lucide-react';
 
 export const NurseERCarePage: React.FC = () => {
   const { user } = useAuth();
   const { selectedBranch } = useNurse();
   const { erVisits, updateERTriage, recordERVitals, addERNursingNote, administerERMedication } = useER();
+  const [searchParams] = useSearchParams();
+  const initialUhid = searchParams.get('uhid') || '';
 
   const userRole = (user?.role || '').toString().toLowerCase().replace('userrole.', '');
   const isNurse = userRole.includes('nurse');
@@ -30,30 +37,42 @@ export const NurseERCarePage: React.FC = () => {
     : (selectedBranch && selectedBranch !== 'All' ? selectedBranch : (user?.branch || 'All'));
 
   const nurseName = user?.name || 'Staff Nurse';
+  const [filterMode, setFilterMode] = useState<'all' | 'assigned'>('all');
 
-  // Filter ER cases assigned to logged-in nurse (or unassigned waiting cases) in current branch
+  // Filter ER cases assigned to logged-in nurse or all active in branch
   const nurseVisits = React.useMemo(() => {
     return erVisits.filter((v) => {
       if (v.er_status === 'Discharged' || v.er_status === 'Transferred') return false;
       if (!matchBranch(v.branch, activeBranch)) return false;
-      const assigned = (v.assigned_nurse || (v as any).assignedNurse || '').toLowerCase().trim();
-      const currentNurse = nurseName.toLowerCase().trim();
-      if (!assigned || assigned === 'unassigned') return true;
-      return assigned === currentNurse || currentNurse.includes(assigned) || assigned.includes(currentNurse);
+      if (filterMode === 'assigned') {
+        const assigned = (v.assigned_nurse || (v as any).assignedNurse || '').toLowerCase().trim();
+        const currentNurse = nurseName.toLowerCase().trim();
+        if (!assigned || assigned === 'unassigned') return false;
+        return assigned === currentNurse || currentNurse.includes(assigned) || assigned.includes(currentNurse);
+      }
+      return true;
     });
-  }, [erVisits, nurseName, activeBranch]);
+  }, [erVisits, nurseName, activeBranch, filterMode]);
 
-  const [selectedVisitId, setSelectedVisitId] = useState<string>(nurseVisits[0]?.id || '');
-  const activeVisit = erVisits.find((v) => v.id === selectedVisitId);
+  const [selectedVisitId, setSelectedVisitId] = useState<string>('');
 
   useEffect(() => {
+    if (initialUhid) {
+      const match = erVisits.find((v) => (v.patient_uhid === initialUhid || v.patientUhid === initialUhid) && v.er_status !== 'Discharged' && v.er_status !== 'Transferred');
+      if (match) {
+        setSelectedVisitId(match.id);
+        return;
+      }
+    }
     if (nurseVisits.length > 0 && (!selectedVisitId || !nurseVisits.some((v) => v.id === selectedVisitId))) {
       const active = nurseVisits.find((v) => v.er_status !== 'Discharged' && v.er_status !== 'Transferred') || nurseVisits[0];
       if (active) {
         setSelectedVisitId(active.id);
       }
     }
-  }, [nurseVisits, selectedVisitId]);
+  }, [nurseVisits, selectedVisitId, initialUhid, erVisits]);
+
+  const activeVisit = erVisits.find((v) => v.id === selectedVisitId);
 
   // Triage Form State
   const [triageStatus, setTriageStatus] = useState<TriageStatus>('Priority 2 (Yellow - Urgent)');
@@ -126,52 +145,103 @@ export const NurseERCarePage: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="bg-gradient-to-r from-blue-700 via-indigo-700 to-blue-800 p-6 rounded-2xl text-white shadow-lg flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="bg-gradient-to-r from-red-700 via-rose-700 to-indigo-800 p-6 rounded-2xl text-white shadow-lg flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
           <div className="w-12 h-12 rounded-xl bg-white/10 backdrop-blur-md flex items-center justify-center shrink-0">
-            <HeartPulse className="w-7 h-7 text-rose-300 animate-pulse" />
+            <Siren className="w-7 h-7 text-rose-200 animate-pulse" />
           </div>
           <div>
             <h1 className="text-xl font-bold">Nurse ER Triage & Nursing Care</h1>
-            <p className="text-xs text-blue-100 mt-1">
+            <p className="text-xs text-rose-100 mt-1">
               Classify triage urgency, record emergency vitals, administer meds, and update shared ER records.
             </p>
           </div>
         </div>
       </div>
 
-      {/* Patient Picker Bar */}
+      {/* Branch Selector */}
+      <NurseBranchSelector />
+
+      {/* Patient Picker Bar & Filters */}
       <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs space-y-4 text-xs">
-        <label className="block font-bold text-slate-700">Select Active ER Patient for Nursing Care (Assigned Nurse: {nurseName}) *</label>
-        <select
-          value={selectedVisitId}
-          onChange={(e) => setSelectedVisitId(e.target.value)}
-          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-900 outline-none focus:bg-white focus:ring-2 focus:ring-blue-500/20"
-        >
-          {nurseVisits.map((v) => (
-            <option key={v.id} value={v.id}>
-              {v.encounter_number || v.id} — {v.patient_name} ({v.patient_uhid}, Dept: {v.department || 'General Medicine'}, {v.emergency_type})
-            </option>
-          ))}
-        </select>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <label className="font-bold text-slate-800 flex items-center gap-2">
+            <Users className="w-4 h-4 text-rose-600" />
+            <span>Select Active ER Patient for Nursing Care</span>
+          </label>
+          <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl">
+            <button
+              onClick={() => setFilterMode('all')}
+              className={`px-3 py-1 rounded-lg font-bold transition-all cursor-pointer ${
+                filterMode === 'all'
+                  ? 'bg-white text-slate-900 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              All Branch ER Cases ({erVisits.filter(v => v.er_status !== 'Discharged' && v.er_status !== 'Transferred' && matchBranch(v.branch, activeBranch)).length})
+            </button>
+            <button
+              onClick={() => setFilterMode('assigned')}
+              className={`px-3 py-1 rounded-lg font-bold transition-all cursor-pointer ${
+                filterMode === 'assigned'
+                  ? 'bg-white text-rose-700 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Assigned to Me ({nurseName})
+            </button>
+          </div>
+        </div>
+
+        {nurseVisits.length > 0 ? (
+          <select
+            value={selectedVisitId}
+            onChange={(e) => setSelectedVisitId(e.target.value)}
+            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-900 outline-none focus:bg-white focus:ring-2 focus:ring-rose-500/20"
+          >
+            {nurseVisits.map((v) => (
+              <option key={v.id} value={v.id}>
+                {v.encounter_number || v.id} — {v.patient_name} ({v.patient_uhid}, Dept: {v.department || 'Emergency'}, {v.triage_status || v.emergency_type || 'Active'})
+              </option>
+            ))}
+          </select>
+        ) : (
+          <div className="bg-slate-50 p-6 rounded-xl border border-dashed border-slate-200 text-center space-y-2">
+            <Siren className="w-8 h-8 text-slate-400 mx-auto" />
+            <p className="font-bold text-slate-700">No Active ER Patients Found</p>
+            <p className="text-slate-500 text-[11px]">
+              {filterMode === 'assigned'
+                ? `No active emergency cases currently assigned to "${nurseName}". Switch to "All Branch ER Cases" to view unassigned patients.`
+                : `No active emergency cases registered in ${activeBranch}. New emergency admissions from Reception or ER will appear here immediately.`}
+            </p>
+            {filterMode === 'assigned' && (
+              <button
+                onClick={() => setFilterMode('all')}
+                className="mt-2 px-4 py-1.5 rounded-lg bg-blue-600 text-white font-bold text-xs cursor-pointer hover:bg-blue-700 transition-colors"
+              >
+                View All Branch ER Patients
+              </button>
+            )}
+          </div>
+        )}
 
         {activeVisit && (
-          <div className="bg-gradient-to-r from-blue-50 to-indigo-50/60 p-4 rounded-xl border border-blue-100 grid grid-cols-1 sm:grid-cols-4 gap-3 text-xs">
+          <div className="bg-gradient-to-r from-rose-50/70 via-blue-50/50 to-indigo-50/60 p-4 rounded-xl border border-rose-100 grid grid-cols-1 sm:grid-cols-4 gap-3 text-xs">
             <div>
-              <span className="text-[10px] font-bold text-blue-700 uppercase">Assigned Department</span>
-              <p className="font-bold text-slate-900 mt-0.5">{activeVisit.department || 'General Medicine'}</p>
+              <span className="text-[10px] font-bold text-slate-500 uppercase">Assigned Department</span>
+              <p className="font-bold text-slate-900 mt-0.5">{activeVisit.department || 'Emergency Medicine'}</p>
             </div>
             <div>
-              <span className="text-[10px] font-bold text-blue-700 uppercase">Assigned Doctor</span>
+              <span className="text-[10px] font-bold text-slate-500 uppercase">Assigned Doctor</span>
               <p className="font-semibold text-slate-800 mt-0.5">{activeVisit.assigned_doctor || activeVisit.assignedDoctor || 'Unassigned'}</p>
             </div>
             <div>
-              <span className="text-[10px] font-bold text-blue-700 uppercase">Assigned Nurse</span>
+              <span className="text-[10px] font-bold text-slate-500 uppercase">Assigned Nurse</span>
               <p className="font-semibold text-emerald-800 mt-0.5">{activeVisit.assigned_nurse || activeVisit.assignedNurse || 'Unassigned'}</p>
             </div>
             <div>
-              <span className="text-[10px] font-bold text-blue-700 uppercase">Current Location</span>
-              <p className="font-bold text-slate-700 mt-0.5">{activeVisit.current_location || 'ER Triage'}</p>
+              <span className="text-[10px] font-bold text-slate-500 uppercase">Current Location</span>
+              <p className="font-bold text-rose-700 mt-0.5">{activeVisit.current_location || 'ER Triage Bay'}</p>
             </div>
           </div>
         )}

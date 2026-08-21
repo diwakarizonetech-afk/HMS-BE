@@ -531,7 +531,7 @@ export const DoctorOverview: React.FC = () => {
           const key = a.patientUhid || a.patientName || a.id;
           if (!key) return;
           const isEmergency = Boolean(a.isEmergency || a.priority > 0);
-          const pInfo = patientMap.get((a.patientUhid || '').toLowerCase()) || patientMap.get(a.patientId);
+          const pInfo = patientMap.get((a.patientUhid || a.patient_uhid || '').toLowerCase()) || (a.patientId ? patientMap.get(a.patientId) : undefined);
           if (!uniqueMap.has(key)) {
             const nameParts = (a.patientName || (pInfo ? `${pInfo.firstName} ${pInfo.lastName}` : 'Patient')).split(' ');
             uniqueMap.set(key, {
@@ -665,11 +665,15 @@ export const DoctorOverview: React.FC = () => {
     };
 
     loadDoctorData();
-    const interval = setInterval(loadDoctorData, 4000);
+    const interval = setInterval(() => {
+      if (!document.hidden) {
+        loadDoctorData();
+      }
+    }, 30000);
     return () => clearInterval(interval);
   }, [user]);
 
-  // Fetch real notifications from backend and poll every 15 seconds
+  // Fetch real notifications from backend and poll every 30 seconds
   useEffect(() => {
     const fetchNotifications = async () => {
       try {
@@ -698,7 +702,11 @@ export const DoctorOverview: React.FC = () => {
       }
     };
     fetchNotifications();
-    const interval = setInterval(fetchNotifications, 15000); // poll every 15s
+    const interval = setInterval(() => {
+      if (!document.hidden) {
+        fetchNotifications();
+      }
+    }, 30000); // poll every 30s
     return () => clearInterval(interval);
   }, []);
 

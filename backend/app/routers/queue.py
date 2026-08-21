@@ -225,7 +225,12 @@ def list_queue(
         QueueItem.priority.desc(),
         QueueItem.created_at.asc(),
     )
-    return db.scalars(stmt).all()
+    items = db.scalars(stmt).all()
+    for it in items:
+        if (it.token_number and str(it.token_number).startswith("E-")) and not it.is_emergency:
+            it.is_emergency = True
+            it.priority = it.priority or 1
+    return items
 
 
 @router.post("/queue", response_model=QueueItemOut, status_code=status.HTTP_201_CREATED)
@@ -234,6 +239,9 @@ def add_to_queue(payload: QueueItemCreate, db: Session = Depends(get_db), curren
     data["time_issued"] = data.get("time_issued") or datetime.now().strftime("%H:%M")
     if not data.get("branch"):
         data["branch"] = current_user.branch
+    if data.get("token_number") and str(data.get("token_number")).startswith("E-"):
+        data["is_emergency"] = True
+        data["priority"] = data.get("priority") or 1
     item = QueueItem(**data)
     db.add(item)
     db.commit()

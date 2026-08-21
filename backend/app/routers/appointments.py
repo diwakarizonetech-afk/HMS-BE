@@ -19,6 +19,12 @@ _perm_edit = Depends(require_permission("Appointment Mgmt", "Edit"))
 _perm_delete = Depends(require_permission("Appointment Mgmt", "Delete"))
 
 
+def _next_booking_token(db: Session, is_emergency: bool) -> str:
+    prefix = "E-" if is_emergency else "T-"
+    count = db.query(Appointment).filter(Appointment.token_number.like(f"{prefix}%")).count() + 1
+    return f"{prefix}{count:03d}"
+
+
 @router.get("", response_model=list[AppointmentOut])
 def list_appointments(
     patient_uhid: str | None = Query(None),
@@ -60,20 +66,36 @@ def list_appointments(
         stmt = stmt.where(Appointment.status == status_filter)
 
     # Branch scoping: filter by explicit branch query or current user's branch (unless super_admin/admin without filter)
-    target_branch = branch or (current_user.branch if role_norm not in ("super_admin", "admin") else None)
-    if target_branch and target_branch.lower() != 'all':
-        norm_sub = target_branch.lower().replace("branch", "").replace("hospital", "").replace("cauvery", "").replace("care", "").strip()
-        apt_branch_clauses = [
-            func.lower(Appointment.branch) == target_branch.lower(),
-            Appointment.branch.is_(None),
-            Appointment.branch == "",
-            func.lower(Appointment.branch) == "main branch",
-        ]
-        if norm_sub:
-            apt_branch_clauses.append(func.lower(Appointment.branch).contains(norm_sub))
-        stmt = stmt.where(or_(*apt_branch_clauses))
+    # When querying by patient_uhid, return complete history across all branches!
+    if not patient_uhid:
+        target_branch = branch or (current_user.branch if role_norm not in ("super_admin", "admin") else None)
+        if target_branch and target_branch.lower() != 'all':
+            norm_sub = target_branch.lower().replace("branch", "").replace("hospital", "").replace("cauvery", "").replace("care", "").strip()
+            apt_branch_clauses = [
+                func.lower(Appointment.branch) == target_branch.lower(),
+            ]
+            if norm_sub:
+                apt_branch_clauses.append(func.lower(Appointment.branch).contains(norm_sub))
+            if norm_sub == "main" or target_branch.lower() == "main branch":
+                apt_branch_clauses.extend([
+                    Appointment.branch.is_(None),
+                    Appointment.branch == "",
+                    func.lower(Appointment.branch) == "main branch",
+                ])
+            stmt = stmt.where(or_(*apt_branch_clauses))
 
-    stmt = stmt.order_by(Appointment.created_at.desc()).offset(skip).limit(limit)
+    from sqlalchemy import case
+    status_order = case(
+        (Appointment.status == AppointmentStatus.Completed, 1),
+        (Appointment.status == AppointmentStatus.Cancelled, 2),
+        else_=0,
+    )
+    stmt = stmt.order_by(
+        status_order.asc(),
+        Appointment.is_emergency.desc(),
+        Appointment.priority.desc(),
+        Appointment.created_at.desc(),
+    ).offset(skip).limit(limit)
     return db.scalars(stmt).all()
 
 
@@ -87,6 +109,9 @@ def book_appointment(payload: AppointmentCreate, db: Session = Depends(get_db), 
     data["created_date"] = data.get("created_date") or today_str()
     if not data.get("branch"):
         data["branch"] = (current_user.branch if current_user else None) or "Main Branch"
+    data["is_emergency"] = bool(data.get("is_emergency"))
+    data["priority"] = 1 if data["is_emergency"] else 0
+    data["booking_source"] = data.get("booking_source") or "Reception"
 
     from app.models.patient import Patient, PatientStatus, Gender, BloodGroup, MaritalStatus
 
@@ -97,11 +122,11 @@ def book_appointment(payload: AppointmentCreate, db: Session = Depends(get_db), 
     target_name = (data.get("patient_name") or "").strip()
 
     # 1. Check by UHID
-    if target_uhid:
+    if target_uhid and not data["is_emergency"]:
         pat = db.scalar(select(Patient).where(func.lower(Patient.uhid) == target_uhid.lower()))
 
     # 2. Check by Mobile (exact or last 10 digits)
-    if not pat and target_mobile:
+    if not pat and target_mobile and not data["is_emergency"]:
         clean_mob = "".join(filter(str.isdigit, target_mobile))[-10:]
         if len(clean_mob) >= 10:
             all_pts = db.scalars(select(Patient)).all()
@@ -114,7 +139,7 @@ def book_appointment(payload: AppointmentCreate, db: Session = Depends(get_db), 
             pat = db.scalar(select(Patient).where(Patient.mobile == target_mobile))
 
     # 3. Check by Full Name
-    if not pat and target_name:
+    if not pat and target_name and not data["is_emergency"]:
         all_pts = db.scalars(select(Patient)).all()
         for p in all_pts:
             full_n = f"{p.first_name or ''} {p.last_name or ''}".strip().lower()
@@ -220,9 +245,11 @@ def book_appointment(payload: AppointmentCreate, db: Session = Depends(get_db), 
 
     valid_apt_keys = {
         "patient_id", "patient_uhid", "patient_name", "patient_mobile",
-        "department", "doctor_id", "doctor_name", "date", "time_slot",
-        "reason", "status", "created_date", "branch"
+        "blood_group", "department", "doctor_id", "doctor_name", "date", "time_slot",
+        "reason", "status", "created_date", "is_emergency", "priority",
+        "booking_source", "token_number", "assigned_nurse", "branch"
     }
+    data["token_number"] = data.get("token_number") or _next_booking_token(db, data["is_emergency"])
     apt_data = {k: v for k, v in data.items() if k in valid_apt_keys}
     appointment = Appointment(**apt_data)
     db.add(appointment)
@@ -252,16 +279,20 @@ def book_appointment(payload: AppointmentCreate, db: Session = Depends(get_db), 
             module="appointment", event_type="appointment_booked", recipient_role="doctor", related_record_id=appointment.id
         )
         # Automatically place the booked appointment into the live OPD queue
-        token_str = f"T-{appointment.id[:4].upper()}"
+        token_str = appointment.token_number or f"T-{appointment.id[:4].upper()}"
         q_item = QueueItem(
             token_number=token_str,
             patient_uhid=appointment.patient_uhid,
             patient_name=appointment.patient_name,
+            blood_group=appointment.blood_group,
             doctor_name=appointment.doctor_name,
             department=appointment.department or "General Medicine",
             status="Waiting",
             waiting_time_minutes=15,
             time_issued=appointment.time_slot or datetime.now().strftime("%H:%M"),
+            is_emergency=appointment.is_emergency,
+            priority=appointment.priority,
+            assigned_nurse=appointment.assigned_nurse,
             branch=appointment.branch,
         )
         db.add(q_item)
@@ -310,16 +341,20 @@ def update_appointment(
             )
         )
         if not existing_q:
-            token_str = f"T-{appointment.id[:4].upper()}"
+            token_str = appointment.token_number or f"T-{appointment.id[:4].upper()}"
             q_item = QueueItem(
                 token_number=token_str,
                 patient_uhid=appointment.patient_uhid,
                 patient_name=appointment.patient_name,
+                blood_group=appointment.blood_group,
                 doctor_name=appointment.doctor_name,
                 department=appointment.department or "General Medicine",
                 status="Waiting",
-                waiting_time_minutes=15,
+                waiting_time_minutes=0 if appointment.is_emergency else 15,
                 time_issued=appointment.time_slot or datetime.now().strftime("%H:%M"),
+                is_emergency=bool(appointment.is_emergency or (token_str and token_str.startswith("E-"))),
+                priority=appointment.priority if appointment.priority is not None else (1 if appointment.is_emergency else 0),
+                assigned_nurse=appointment.assigned_nurse,
                 branch=appointment.branch,
             )
             db.add(q_item)

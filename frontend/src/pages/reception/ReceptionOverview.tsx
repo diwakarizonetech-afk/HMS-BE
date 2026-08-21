@@ -59,10 +59,14 @@ export const ReceptionOverview: React.FC = () => {
     });
   }, [notifications, userBranch, isSuperAdminOrAdmin]);
 
-  // Auto-refresh real-time data on mount and poll every 10s
+  // Auto-refresh real-time data on mount and poll every 30s
   useEffect(() => {
     refreshData();
-    const interval = setInterval(refreshData, 10000);
+    const interval = setInterval(() => {
+      if (!document.hidden) {
+        refreshData();
+      }
+    }, 30000);
     return () => clearInterval(interval);
   }, []);
 

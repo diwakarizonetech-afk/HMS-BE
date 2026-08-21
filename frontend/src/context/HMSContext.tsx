@@ -427,9 +427,9 @@ export const HMSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     loadBackendData();
     const interval = setInterval(() => {
       const token = localStorage.getItem('hms_token');
-      if (!token) return;
+      if (!token || document.hidden) return;
       loadBackendData();
-    }, 5000);
+    }, 30000);
 
     window.addEventListener('hms_auth_change', loadBackendData);
     return () => {

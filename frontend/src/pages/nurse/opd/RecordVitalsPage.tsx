@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   HeartPulse,
   Plus,
@@ -57,6 +58,7 @@ const defaultVitalsForm: VitalsFormState = {
 };
 
 export const RecordVitalsPage: React.FC = () => {
+  const navigate = useNavigate();
   const { vitals, notes, medications, addVitalSign, updateVitalSign, deleteVitalSign, selectedBranch } = useNurse();
   const { patients, doctors, appointments, ipdAdmissions, beds, addToast } = useHMS();
   const { user } = useAuth();
@@ -357,11 +359,6 @@ export const RecordVitalsPage: React.FC = () => {
 
       {/* STEP 2: PATIENT INFORMATION CARD */}
       <PatientInfoCard patient={selectedPatient} />
-      {selectedPatient && appointments.some((appointment) => appointment.patientUhid === selectedPatient.uhid && appointment.isEmergency) && (
-        <div className="bg-rose-50 border border-rose-200 rounded-xl px-4 py-3 text-xs font-bold text-rose-800">
-          EMERGENCY PATIENT: continue through the normal OPD vitals workflow.
-        </div>
-      )}
 
       {/* STEP 3: VITALS RECORDING / EDITING FORM */}
       {selectedPatient && (

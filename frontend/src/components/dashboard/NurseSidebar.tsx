@@ -6,17 +6,14 @@ import {
   HeartPulse,
   Stethoscope,
   BedDouble,
-  ArrowLeftRight,
   ClipboardList,
   Pill,
   ChevronDown,
   ChevronRight,
   LogOut,
   Activity,
-  UserCheck,
   Calendar,
   Clock,
-  Siren,
 } from 'lucide-react';
 
 interface NurseSidebarProps {
@@ -39,17 +36,15 @@ export const NurseSidebar: React.FC<NurseSidebarProps> = ({ mobileOpen, setMobil
   };
 
   const navItemClass = ({ isActive }: { isActive: boolean }) =>
-    `flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all duration-200 ${
-      isActive
-        ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
-        : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+    `flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all duration-200 ${isActive
+      ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
+      : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
     }`;
 
   const subNavItemClass = ({ isActive }: { isActive: boolean }) =>
-    `flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-all duration-200 pl-8 ${
-      isActive
-        ? 'bg-blue-50 text-blue-700 font-semibold border-l-2 border-blue-600'
-        : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+    `flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-all duration-200 pl-8 ${isActive
+      ? 'bg-blue-50 text-blue-700 font-semibold border-l-2 border-blue-600'
+      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
     }`;
 
   return (
@@ -64,9 +59,8 @@ export const NurseSidebar: React.FC<NurseSidebarProps> = ({ mobileOpen, setMobil
 
       {/* Sidebar Drawer / Container */}
       <aside
-        className={`fixed top-0 left-0 bottom-0 z-50 w-64 bg-white border-r border-slate-200 flex flex-col transition-transform duration-300 lg:static lg:translate-x-0 ${
-          mobileOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'
-        }`}
+        className={`fixed top-0 left-0 bottom-0 z-50 w-64 bg-white border-r border-slate-200 flex flex-col transition-transform duration-300 lg:static lg:translate-x-0 ${mobileOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'
+          }`}
       >
         {/* Brand Header */}
         <div className="h-20 px-5 flex items-center gap-3 border-b border-slate-100 shrink-0">

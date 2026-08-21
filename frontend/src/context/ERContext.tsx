@@ -128,8 +128,10 @@ export const ERProvider: React.FC<{ children: React.ReactNode }> = ({ children }
 
     window.addEventListener('hms_auth_change', handleAuthChange);
     const refreshTimer = token ? window.setInterval(() => {
-      refreshERVisits();
-    }, 15000) : undefined;
+      if (!document.hidden) {
+        refreshERVisits();
+      }
+    }, 30000) : undefined;
 
     return () => {
       window.removeEventListener('hms_auth_change', handleAuthChange);

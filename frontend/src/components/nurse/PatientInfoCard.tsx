@@ -1,6 +1,7 @@
 import React from 'react';
 import { Patient } from '../../types/hms';
 import { useHMS } from '../../context/HMSContext';
+import { useER } from '../../context/ERContext';
 import {
   User,
   Phone,
@@ -20,7 +21,8 @@ interface PatientInfoCardProps {
 }
 
 export const PatientInfoCard: React.FC<PatientInfoCardProps> = ({ patient }) => {
-  const { doctors, beds, ipdAdmissions } = useHMS();
+  const { doctors, beds, ipdAdmissions, appointments } = useHMS();
+  const { erVisits } = useER();
 
   if (!patient) {
     return (
@@ -39,26 +41,58 @@ export const PatientInfoCard: React.FC<PatientInfoCardProps> = ({ patient }) => 
   // Derive associated doctor, bed, ward, diagnosis details from HMS data
   const occupiedBed = beds.find((b) => b.currentPatientUhid === patient.uhid);
   const activeAdm = (ipdAdmissions || []).find((a) => a.patientUhid === patient.uhid && a.status !== 'Discharged');
+  const activeErVisit = (erVisits || []).find(
+    (v) => (v.patient_uhid === patient.uhid || v.patientUhid === patient.uhid) && v.er_status !== 'Discharged' && v.er_status !== 'Transferred'
+  );
+  const emergencyAppointment = (appointments || []).find(
+    (a) =>
+      (a.patientUhid === patient.uhid || a.patient_uhid === patient.uhid) &&
+      (a.isEmergency ||
+        (a.type || '').toLowerCase().includes('emergency') ||
+        (a.appointmentType || '').toLowerCase().includes('emergency') ||
+        (a.department || '').toLowerCase().includes('emergency') ||
+        (a.status || '').toLowerCase().includes('emergency'))
+  );
+
   const defaultDoctor = doctors[0] || { name: 'Dr. Vikram Malhotra', department: 'Cardiology' };
 
-  const doctorName = activeAdm?.attendingDoctor || defaultDoctor.name;
-  const department = defaultDoctor.department;
-  const patientType = patient.status === 'Admitted' || !!activeAdm ? 'IPD' : 'OPD';
-  const wardName = activeAdm?.ward || occupiedBed?.ward || (patient.status === 'Admitted' ? 'ICU Ward' : 'OPD Daycare');
-  const roomNumber = activeAdm?.roomNumber ? `Room-${activeAdm.roomNumber}` : occupiedBed ? `Room-${occupiedBed.roomNumber}` : 'Room 102';
-  const bedNumber = activeAdm?.bedNumber || occupiedBed?.bedNumber || 'B-101';
-  const diagnosis = activeAdm?.diagnosis || patient.existingDiseases || (patient.status === 'Admitted' ? 'Acute Crisis / Under Care' : 'General Evaluation');
-  const appointmentDate = new Date().toISOString().split('T')[0];
-  const appointmentTime = '09:30 AM';
-  const admissionDate = activeAdm?.admissionDate || (patient.status === 'Admitted' ? 'Today' : 'N/A');
-  const conditionStatus: string =
-    patient.status === 'Discharged' ? 'Discharged' : (patient.status === 'Admitted' || !!activeAdm) ? 'IPD Admitted' : 'Stable';
-
   const isEmergencyPatient = Boolean(
+    activeErVisit ||
+    emergencyAppointment ||
     patient.isEmergency ||
-    (patient.status || '').toLowerCase() === 'emergency' ||
-    (patient.category || '').toLowerCase() === 'emergency'
+    (patient.status || '').toLowerCase().includes('emergency') ||
+    (patient.category || '').toLowerCase().includes('emergency') ||
+    (patient.patientType || '').toLowerCase().includes('emergency') ||
+    (patient.department || '').toLowerCase().includes('emergency') ||
+    (patient.notes || '').toLowerCase().includes('emergency')
   );
+
+  const doctorName =
+    activeErVisit?.assigned_doctor ||
+    activeErVisit?.assignedDoctor ||
+    emergencyAppointment?.doctorName ||
+    activeAdm?.attendingDoctor ||
+    defaultDoctor.name;
+
+  const department =
+    activeErVisit?.department ||
+    emergencyAppointment?.department ||
+    defaultDoctor.department;
+
+  const patientType = isEmergencyPatient ? 'EMERGENCY' : (patient.status === 'Admitted' || !!activeAdm ? 'IPD' : 'OPD');
+  const wardName =
+    activeErVisit?.current_location ||
+    activeAdm?.ward ||
+    occupiedBed?.ward ||
+    (patient.status === 'Admitted' ? 'ICU Ward' : isEmergencyPatient ? 'ER Triage / Resuscitation' : 'OPD Daycare');
+  const roomNumber = activeAdm?.roomNumber ? `Room-${activeAdm.roomNumber}` : occupiedBed ? `Room-${occupiedBed.roomNumber}` : isEmergencyPatient ? 'ER Bay 1' : 'Room 102';
+  const bedNumber = activeAdm?.bedNumber || occupiedBed?.bedNumber || (isEmergencyPatient ? (activeErVisit?.bed_number || 'ER-Bed 1') : 'B-101');
+  const diagnosis = activeErVisit?.chief_complaint || activeAdm?.admissionReason || activeAdm?.diagnosis || patient.existingDiseases || (patient.status === 'Admitted' ? 'Acute Crisis / Under Care' : isEmergencyPatient ? 'Emergency Triage Evaluation' : 'General Evaluation');
+  const appointmentDate = emergencyAppointment?.date || new Date().toISOString().split('T')[0];
+  const appointmentTime = emergencyAppointment?.timeSlot || '09:30 AM';
+  const admissionDate = activeErVisit?.encounter_date || activeAdm?.admissionDate || (patient.status === 'Admitted' || isEmergencyPatient ? 'Today' : 'N/A');
+  const conditionStatus: string =
+    patient.status === 'Discharged' ? 'Discharged' : isEmergencyPatient ? (activeErVisit?.triage_status || 'Emergency Priority Case') : (patient.status === 'Admitted' || !!activeAdm) ? 'IPD Admitted' : 'Stable';
 
   return (
     <div className={`bg-white rounded-2xl border shadow-xs p-6 space-y-4 relative overflow-hidden transition-all ${
@@ -103,20 +137,22 @@ export const PatientInfoCard: React.FC<PatientInfoCardProps> = ({ patient }) => 
         <div className="flex items-center gap-2 flex-wrap">
           {/* Emergency Alert Tag */}
           {isEmergencyPatient && (
-            <span className="px-3 py-1 rounded-xl text-xs font-black uppercase tracking-wider bg-rose-100 text-rose-800 border border-rose-300 flex items-center gap-1">
+            <span className="px-3 py-1 rounded-xl text-xs font-black uppercase tracking-wider bg-rose-100 text-rose-800 border border-rose-300 flex items-center gap-1 shadow-xs">
               STAT Emergency
             </span>
           )}
 
-          {/* Patient Type Badge (OPD / IPD) */}
+          {/* Patient Type Badge (OPD / IPD / EMERGENCY) */}
           <span
             className={`px-3 py-1 rounded-xl text-xs font-black uppercase tracking-wider ${
-              patientType === 'IPD'
+              isEmergencyPatient || patientType === 'EMERGENCY'
+                ? 'bg-rose-100 text-rose-800 border border-rose-300 ring-1 ring-rose-500/30'
+                : patientType === 'IPD'
                 ? 'bg-purple-100 text-purple-700 border border-purple-200'
                 : 'bg-emerald-100 text-emerald-700 border border-emerald-200'
             }`}
           >
-            {patientType} Patient
+            {isEmergencyPatient ? 'EMERGENCY' : patientType} Patient
           </span>
 
           {/* Condition Badge */}
@@ -131,7 +167,7 @@ export const PatientInfoCard: React.FC<PatientInfoCardProps> = ({ patient }) => 
                 : 'bg-blue-100 text-blue-700'
             }`}
           >
-            {isEmergencyPatient ? 'Emergency Case' : conditionStatus}
+            {isEmergencyPatient ? (activeErVisit?.triage_status || 'Emergency Case') : conditionStatus}
           </span>
 
           {/* Read Only Indicator Badge */}

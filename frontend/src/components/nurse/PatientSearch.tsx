@@ -3,6 +3,7 @@ import { Search, UserCheck, X, Building2, Loader2 } from 'lucide-react';
 import { useHMS } from '../../context/HMSContext';
 import { useNurse } from '../../context/NurseContext';
 import { useAuth } from '../../context/AuthContext';
+import { useER } from '../../context/ERContext';
 import { Patient } from '../../types/hms';
 import { isPatientAllocatedToBranch, matchBranch } from '../../utils/helpers';
 
@@ -19,6 +20,7 @@ export const PatientSearch: React.FC<PatientSearchProps> = ({
 }) => {
   const { patients, appointments, ipdAdmissions, beds, searchPatients } = useHMS();
   const { vitals, notes, medications, selectedBranch } = useNurse();
+  const { erVisits } = useER();
   const { user } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -47,7 +49,7 @@ export const PatientSearch: React.FC<PatientSearchProps> = ({
 
   // Filter matching patients allocated to current branch
   const matchingPatients = patients.filter((p) => {
-    if (!isPatientAllocatedToBranch(p, activeBranch, { appointments, admissions: ipdAdmissions, beds, vitals, notes, medications })) {
+    if (!isPatientAllocatedToBranch(p, activeBranch, { appointments, admissions: ipdAdmissions, beds, vitals, notes, medications, erVisits })) {
       return false;
     }
     if (!searchTerm.trim()) return false;

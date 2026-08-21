@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     # Postgres connection. Override via .env / environment variables.
-    DATABASE_URL: str = "postgresql+psycopg2://postgres:password@localhost:5432/hms_last"
+    DATABASE_URL: str = "postgresql+psycopg2://postgres:password@localhost:5432/hms"
 
     SECRET_KEY: str = "CHANGE_ME_SUPER_SECRET_KEY"
     ALGORITHM: str = "HS256"
@@ -26,6 +26,9 @@ class Settings(BaseSettings):
 
     # Comma separated list of allowed CORS origins, "*" for all
     CORS_ORIGINS: str = "*"
+
+    # Target Postgres schema. "public" is the default; override via .env.
+    POSTGRES_SCHEMA: str = "public"
 
     # Razorpay test/live keys. Leave blank to use the local mock QR flow.
     RAZORPAY_KEY_ID: str = ""

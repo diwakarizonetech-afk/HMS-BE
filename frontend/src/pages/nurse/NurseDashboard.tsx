@@ -256,6 +256,7 @@ export const NurseDashboard: React.FC = () => {
       color: 'bg-blue-500',
       textColor: 'text-blue-600',
       bgColor: 'bg-blue-50',
+      link: '/nurse/opd/vitals',
     },
     {
       title: 'OPD Patients',
@@ -265,6 +266,7 @@ export const NurseDashboard: React.FC = () => {
       color: 'bg-indigo-500',
       textColor: 'text-indigo-600',
       bgColor: 'bg-indigo-50',
+      link: '/nurse/opd/vitals',
     },
     {
       title: 'IPD Patients',
@@ -274,6 +276,7 @@ export const NurseDashboard: React.FC = () => {
       color: 'bg-emerald-500',
       textColor: 'text-emerald-600',
       bgColor: 'bg-emerald-50',
+      link: '/nurse/ipd/patient-ward',
     },
     {
       title: 'ER Emergency Cases',
@@ -283,6 +286,7 @@ export const NurseDashboard: React.FC = () => {
       color: 'bg-rose-500',
       textColor: 'text-rose-600',
       bgColor: 'bg-rose-50',
+      link: '/nurse/er/care',
     },
     {
       title: 'Pending Medication',
@@ -292,6 +296,7 @@ export const NurseDashboard: React.FC = () => {
       color: 'bg-amber-500',
       textColor: 'text-amber-600',
       bgColor: 'bg-amber-50',
+      link: '/nurse/ipd/medication-administration',
     },
     {
       title: 'Completed Medication',
@@ -301,6 +306,7 @@ export const NurseDashboard: React.FC = () => {
       color: 'bg-cyan-500',
       textColor: 'text-cyan-600',
       bgColor: 'bg-cyan-50',
+      link: '/nurse/ipd/medication-administration',
     },
     {
       title: 'Critical Patients',
@@ -310,6 +316,7 @@ export const NurseDashboard: React.FC = () => {
       color: 'bg-purple-500',
       textColor: 'text-purple-600',
       bgColor: 'bg-purple-50',
+      link: '/nurse/er/care',
     },
   ];
 
@@ -346,13 +353,14 @@ export const NurseDashboard: React.FC = () => {
       <StaffShiftWidget portalRole="nurse" rosterRoute="/nurse/shift-roster" />
 
       {/* Top 6 Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7 gap-4">
         {summaryCards.map((c, idx) => {
           const Icon = c.icon;
           return (
             <div
               key={idx}
-              className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs hover:shadow-md transition-all group"
+              onClick={() => c.link && navigate(c.link)}
+              className={`bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs hover:shadow-md transition-all group ${c.link ? 'cursor-pointer' : ''}`}
             >
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
@@ -381,7 +389,7 @@ export const NurseDashboard: React.FC = () => {
           <span className="text-xs text-slate-500">Instant workflow shortcuts</span>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
           <button
             onClick={() => navigate('/nurse/opd/vitals')}
             className="flex items-center justify-between p-4 rounded-xl border border-rose-100 bg-rose-50/50 hover:bg-rose-50 hover:border-rose-300 transition-all cursor-pointer group text-left"
@@ -393,6 +401,22 @@ export const NurseDashboard: React.FC = () => {
               <div>
                 <p className="text-xs font-bold text-slate-900 group-hover:text-rose-700">Record Vitals</p>
                 <p className="text-[10px] text-slate-500">Pre-consultation triage</p>
+              </div>
+            </div>
+            <ArrowRight className="w-4 h-4 text-rose-400 group-hover:translate-x-1 transition-transform" />
+          </button>
+
+          <button
+            onClick={() => navigate('/nurse/er/care')}
+            className="flex items-center justify-between p-4 rounded-xl border border-red-100 bg-red-50/50 hover:bg-red-50 hover:border-red-300 transition-all cursor-pointer group text-left"
+          >
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-xl bg-rose-600 text-white shadow-md shadow-rose-600/20">
+                <Siren className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-xs font-bold text-slate-900 group-hover:text-rose-700">ER Emergency Care</p>
+                <p className="text-[10px] text-slate-500">Triage & ER nursing</p>
               </div>
             </div>
             <ArrowRight className="w-4 h-4 text-rose-400 group-hover:translate-x-1 transition-transform" />

@@ -80,6 +80,9 @@ export interface Patient {
   branch?: string;
   isEmergency?: boolean;
   category?: string;
+  patientType?: string;
+  department?: string;
+  notes?: string;
 }
 
 export interface EmergencyContactItem {
@@ -148,6 +151,8 @@ export type AppointmentStatus =
 
 export interface Appointment {
   id: string;
+  patientId?: string;
+  patient_id?: string;
   patientUhid: string;
   patientName: string;
   patientMobile: string;
@@ -167,6 +172,9 @@ export interface Appointment {
   tokenNumber?: string;
   bloodGroup?: string;
   assignedNurse?: string;
+  type?: string;
+  appointmentType?: string;
+  patient_uhid?: string;
 
   // Extended Patient Details
   email?: string;
@@ -261,6 +269,7 @@ export interface IPDAdmission {
   attendingDoctor: string;
   attendingNurse?: string;
   admissionReason: string;
+  diagnosis?: string;
   emergencyContact: string;
   insuranceProvider?: string;
   insuranceNumber?: string;

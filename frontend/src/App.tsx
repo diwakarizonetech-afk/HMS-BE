@@ -185,240 +185,242 @@ export default function App() {
               <SuperAdminProvider>
                 <ERProvider>
                   <BrowserRouter>
-                  <Routes>
-                    {/* Public Routes */}
-                    <Route path="/" element={<LandingPage />} />
-                    <Route path="/login" element={<LoginPage />} />
+                    <Routes>
+                      {/* Public Routes */}
+                      <Route path="/" element={<LandingPage />} />
+                      <Route path="/login" element={<LoginPage />} />
 
-                    {/* Patient Portal Routes */}
-                    <Route path="/patient/book-appointment" element={<PatientBookingPage />} />
-                    <Route path="/patient/history" element={<PatientAppointmentHistoryPage />} />
-                    <Route path="/patient/dashboard" element={<Navigate to="/patient/history" replace />} />
+                      {/* Patient Portal Routes */}
+                      <Route path="/patient/book-appointment" element={<PatientBookingPage />} />
+                      <Route path="/patient/history" element={<PatientAppointmentHistoryPage />} />
+                      <Route path="/patient/dashboard" element={<Navigate to="/patient/history" replace />} />
 
-                    {/* Protected Reception Routes */}
-                    <Route
-                      path="/reception"
-                      element={
-                        <ProtectedRoute allowedRoles={['reception', 'doctor', 'receptionist', 'admin', 'super_admin', 'superadmin']}>
-                          <ReceptionDashboardLayout />
-                        </ProtectedRoute>
-                      }
-                    >
-                      <Route index element={<Navigate to="/reception/dashboard" replace />} />
-                      <Route path="dashboard" element={<ReceptionOverview />} />
+                      {/* Protected Reception Routes */}
+                      <Route
+                        path="/reception"
+                        element={
+                          <ProtectedRoute allowedRoles={['reception', 'doctor', 'receptionist', 'admin', 'super_admin', 'superadmin']}>
+                            <ReceptionDashboardLayout />
+                          </ProtectedRoute>
+                        }
+                      >
+                        <Route index element={<Navigate to="/reception/dashboard" replace />} />
+                        <Route path="dashboard" element={<ReceptionOverview />} />
 
-                      {/* Patient Management */}
-                      <Route path="patient/register" element={<RegisterPatientPage />} />
-                      <Route path="patient/search" element={<SearchPatientPage />} />
-                      <Route path="patient/update" element={<UpdatePatientPage />} />
-                      <Route path="patient/emergency" element={<Navigate to="/reception/patient/search" replace />} />
+                        {/* Patient Management */}
+                        <Route path="patient/register" element={<RegisterPatientPage />} />
+                        <Route path="patient/search" element={<SearchPatientPage />} />
+                        <Route path="patient/update" element={<UpdatePatientPage />} />
+                        <Route path="patient/emergency" element={<Navigate to="/reception/patient/search" replace />} />
 
-                      {/* Appointment Management */}
-                      <Route path="appointment/book" element={<BookAppointmentPage />} />
-                      <Route path="appointment/walkin" element={<Navigate to="/reception/appointment/book" replace />} />
-                      <Route path="appointment/walk-in" element={<Navigate to="/reception/appointment/book" replace />} />
-                      <Route path="appointment/availability" element={<DoctorAvailabilityPage />} />
-                      <Route path="appointment/doctors" element={<DoctorAvailabilityPage />} />
-                      <Route path="appointment/queue" element={<QueueManagementPage />} />
-                      <Route path="appointment/reschedule" element={<RescheduleAppointmentPage />} />
-                      <Route path="appointment/cancel" element={<CancelAppointmentPage />} />
+                        {/* Appointment Management */}
+                        <Route path="appointment/book" element={<BookAppointmentPage />} />
+                        <Route path="appointment/walkin" element={<Navigate to="/reception/appointment/book" replace />} />
+                        <Route path="appointment/walk-in" element={<Navigate to="/reception/appointment/book" replace />} />
+                        <Route path="appointment/availability" element={<DoctorAvailabilityPage />} />
+                        <Route path="appointment/doctors" element={<DoctorAvailabilityPage />} />
+                        <Route path="appointment/queue" element={<QueueManagementPage />} />
+                        <Route path="appointment/reschedule" element={<RescheduleAppointmentPage />} />
+                        <Route path="appointment/cancel" element={<CancelAppointmentPage />} />
 
-                      {/* IPD Management */}
-                      <Route path="ipd/admit" element={<AdmitPatientPage />} />
-                      <Route path="ipd/beds" element={<BedAllocationPage />} />
+                        {/* IPD Management */}
+                        <Route path="ipd/admit" element={<AdmitPatientPage />} />
+                        <Route path="ipd/beds" element={<BedAllocationPage />} />
 
-                      {/* ER Management Subroutes */}
-                      <Route path="er/*" element={<Navigate to="/reception/appointment/book" replace />} />
+                        {/* ER Management Subroutes */}
+                        <Route path="er/*" element={<Navigate to="/reception/appointment/book" replace />} />
 
-                      {/* Staff Leave & Shift Roster */}
-                      <Route path="leave" element={<StaffLeavePage portalRole="Receptionist" defaultEmpId="EMP-REC-001" defaultName="Reception Staff" defaultDept="Front Desk & OPD" />} />
-                      <Route path="shift-roster" element={<StaffShiftRosterPage portalRole="reception" />} />
-                    </Route>
+                        {/* Staff Leave & Shift Roster */}
+                        <Route path="leave" element={<StaffLeavePage portalRole="Receptionist" defaultEmpId="EMP-REC-001" defaultName="Reception Staff" defaultDept="Front Desk & OPD" />} />
+                        <Route path="shift-roster" element={<StaffShiftRosterPage portalRole="reception" />} />
+                      </Route>
 
-                    {/* Protected Doctor Routes */}
-                    <Route
-                      path="/doctor"
-                      element={
-                        <ProtectedRoute allowedRoles={['doctor', 'admin', 'super_admin', 'superadmin']}>
-                          <DoctorDashboardLayout />
-                        </ProtectedRoute>
-                      }
-                    >
-                      <Route index element={<Navigate to="/doctor/dashboard" replace />} />
-                      <Route path="dashboard" element={<DoctorOverview />} />
-                      <Route path="er/*" element={<Navigate to="/doctor/consultation" replace />} />
-                      <Route path="consultation" element={<ConsultationPage />} />
-                      <Route path="ipd-consultation" element={<MedicalHistoryPage />} />
-                      <Route path="leave" element={<LeavePage />} />
-                      <Route path="medical-history" element={<MedicalHistoryPage />} />
-                      <Route path="shift-roster" element={<StaffShiftRosterPage portalRole="doctor" />} />
-                    </Route>
+                      {/* Protected Doctor Routes */}
+                      <Route
+                        path="/doctor"
+                        element={
+                          <ProtectedRoute allowedRoles={['doctor', 'admin', 'super_admin', 'superadmin']}>
+                            <DoctorDashboardLayout />
+                          </ProtectedRoute>
+                        }
+                      >
+                        <Route index element={<Navigate to="/doctor/dashboard" replace />} />
+                        <Route path="dashboard" element={<DoctorOverview />} />
+                        <Route path="er/*" element={<Navigate to="/doctor/consultation" replace />} />
+                        <Route path="consultation" element={<ConsultationPage />} />
+                        <Route path="ipd-consultation" element={<MedicalHistoryPage />} />
+                        <Route path="leave" element={<LeavePage />} />
+                        <Route path="medical-history" element={<MedicalHistoryPage />} />
+                        <Route path="shift-roster" element={<StaffShiftRosterPage portalRole="doctor" />} />
+                      </Route>
 
-                    {/* Protected Lab Routes */}
-                    <Route
-                      path="/lab"
-                      element={
-                        <ProtectedRoute allowedRoles={['lab', 'lab_technician', 'lab technician', 'admin', 'super_admin', 'superadmin']}>
-                          <LabDashboardLayout />
-                        </ProtectedRoute>
-                      }
-                    >
-                      <Route index element={<Navigate to="/lab/dashboard" replace />} />
-                      <Route path="dashboard" element={<LabOverview />} />
-                      <Route path="test-master" element={<TestMasterPage />} />
-                      <Route path="result-entry" element={<ResultEntryPage />} />
-                      <Route path="report-generation" element={<ReportGenerationPage />} />
-                      <Route path="doctor-review" element={<DoctorReviewPage />} />
-                      <Route path="reports" element={<LabReportsPage />} />
-                      <Route path="leave" element={<LabLeavePage />} />
-                      <Route path="shift-roster" element={<StaffShiftRosterPage portalRole="lab" />} />
-                    </Route>
+                      {/* Protected Lab Routes */}
+                      <Route
+                        path="/lab"
+                        element={
+                          <ProtectedRoute allowedRoles={['lab', 'lab_technician', 'lab technician', 'admin', 'super_admin', 'superadmin']}>
+                            <LabDashboardLayout />
+                          </ProtectedRoute>
+                        }
+                      >
+                        <Route index element={<Navigate to="/lab/dashboard" replace />} />
+                        <Route path="dashboard" element={<LabOverview />} />
+                        <Route path="test-master" element={<TestMasterPage />} />
+                        <Route path="result-entry" element={<ResultEntryPage />} />
+                        <Route path="report-generation" element={<ReportGenerationPage />} />
+                        <Route path="doctor-review" element={<DoctorReviewPage />} />
+                        <Route path="reports" element={<LabReportsPage />} />
+                        <Route path="leave" element={<LabLeavePage />} />
+                        <Route path="shift-roster" element={<StaffShiftRosterPage portalRole="lab" />} />
+                      </Route>
 
-                    {/* Protected Pharmacy Routes */}
-                    <Route
-                      path="/pharmacy"
-                      element={
-                        <ProtectedRoute allowedRoles={['pharmacy', 'pharmacist', 'doctor', 'reception', 'nurse', 'store', 'lab', 'admin', 'super_admin', 'superadmin']}>
-                          <PharmacyDashboardLayout />
-                        </ProtectedRoute>
-                      }
-                    >
-                      <Route index element={<Navigate to="/pharmacy/dashboard" replace />} />
-                      <Route path="dashboard" element={<PharmacyOverview />} />
-                      <Route path="pos" element={<DirectSalesPOSPage />} />
-                      <Route path="pos/direct-sales" element={<DirectSalesPOSPage />} />
-                      <Route path="prescription" element={<PrescriptionDispensingPage />} />
-                      <Route path="prescription/list" element={<PrescriptionDispensingPage />} />
-                      <Route path="medicine/list" element={<MedicineListPage />} />
-                      <Route path="medicine/categories" element={<MedicineCategoriesPage />} />
-                      <Route path="stock" element={<StockInventoryPage />} />
-                      <Route path="stock/inventory" element={<StockInventoryPage />} />
-                      <Route path="returns/customer" element={<CustomerReturnsPage />} />
-                      <Route path="reports" element={<PharmacyReportsPage />} />
-                      <Route path="leave" element={<PharmacyLeavePage />} />
-                      <Route path="shift-roster" element={<StaffShiftRosterPage portalRole="pharmacy" />} />
-                    </Route>
+                      {/* Protected Pharmacy Routes */}
+                      <Route
+                        path="/pharmacy"
+                        element={
+                          <ProtectedRoute allowedRoles={['pharmacy', 'pharmacist', 'doctor', 'reception', 'nurse', 'store', 'lab', 'admin', 'super_admin', 'superadmin']}>
+                            <PharmacyDashboardLayout />
+                          </ProtectedRoute>
+                        }
+                      >
+                        <Route index element={<Navigate to="/pharmacy/dashboard" replace />} />
+                        <Route path="dashboard" element={<PharmacyOverview />} />
+                        <Route path="pos" element={<DirectSalesPOSPage />} />
+                        <Route path="pos/direct-sales" element={<DirectSalesPOSPage />} />
+                        <Route path="prescription" element={<PrescriptionDispensingPage />} />
+                        <Route path="prescription/list" element={<PrescriptionDispensingPage />} />
+                        <Route path="medicine/list" element={<MedicineListPage />} />
+                        <Route path="medicine/categories" element={<MedicineCategoriesPage />} />
+                        <Route path="stock" element={<StockInventoryPage />} />
+                        <Route path="stock/inventory" element={<StockInventoryPage />} />
+                        <Route path="returns/customer" element={<CustomerReturnsPage />} />
+                        <Route path="reports" element={<PharmacyReportsPage />} />
+                        <Route path="leave" element={<PharmacyLeavePage />} />
+                        <Route path="shift-roster" element={<StaffShiftRosterPage portalRole="pharmacy" />} />
+                      </Route>
 
-                    {/* Protected Store / Purchase Officer Routes */}
-                    <Route
-                      path="/store"
-                      element={
-                        <ProtectedRoute allowedRoles={['store', 'store_manager', 'store manager', 'pharmacy', 'admin', 'super_admin', 'superadmin']}>
-                          <StoreLayout />
-                        </ProtectedRoute>
-                      }
-                    >
-                      <Route index element={<Navigate to="/store/dashboard" replace />} />
-                      <Route path="dashboard" element={<StoreOverviewPage />} />
-                      <Route path="item-master" element={<ItemMasterPage />} />
-                      <Route path="vendors" element={<VendorManagementPage />} />
-                      <Route path="purchase-orders" element={<PurchaseOrdersPage />} />
-                      <Route path="grn" element={<GoodsReceiptPage />} />
-                      <Route path="stock-inward" element={<StockInwardPage />} />
-                      <Route path="stock-outward" element={<StockOutwardPage />} />
-                      <Route path="stock-transfer" element={<StockTransferPage />} />
-                      <Route path="stock-adjustment" element={<StockAdjustmentPage />} />
-                      <Route path="reorder-management" element={<ReorderManagementPage />} />
-                      <Route path="batch-expiry" element={<BatchExpiryTrackingPage />} />
-                      <Route path="reports" element={<InventoryReportsPage />} />
-                      <Route path="leave" element={<StaffLeavePage portalRole="Store Manager" defaultEmpId="EMP-STR-002" defaultName="Suresh Kumar" defaultDept="Inventory & Store" />} />
-                      <Route path="shift-roster" element={<StaffShiftRosterPage portalRole="store" />} />
-                    </Route>
+                      {/* Protected Store / Purchase Officer Routes */}
+                      <Route
+                        path="/store"
+                        element={
+                          <ProtectedRoute allowedRoles={['store', 'store_manager', 'store manager', 'pharmacy', 'admin', 'super_admin', 'superadmin']}>
+                            <StoreLayout />
+                          </ProtectedRoute>
+                        }
+                      >
+                        <Route index element={<Navigate to="/store/dashboard" replace />} />
+                        <Route path="dashboard" element={<StoreOverviewPage />} />
+                        <Route path="item-master" element={<ItemMasterPage />} />
+                        <Route path="vendors" element={<VendorManagementPage />} />
+                        <Route path="purchase-orders" element={<PurchaseOrdersPage />} />
+                        <Route path="grn" element={<GoodsReceiptPage />} />
+                        <Route path="stock-inward" element={<StockInwardPage />} />
+                        <Route path="stock-outward" element={<StockOutwardPage />} />
+                        <Route path="stock-transfer" element={<StockTransferPage />} />
+                        <Route path="stock-adjustment" element={<StockAdjustmentPage />} />
+                        <Route path="reorder-management" element={<ReorderManagementPage />} />
+                        <Route path="batch-expiry" element={<BatchExpiryTrackingPage />} />
+                        <Route path="reports" element={<InventoryReportsPage />} />
+                        <Route path="leave" element={<StaffLeavePage portalRole="Store Manager" defaultEmpId="EMP-STR-002" defaultName="Suresh Kumar" defaultDept="Inventory & Store" />} />
+                        <Route path="shift-roster" element={<StaffShiftRosterPage portalRole="store" />} />
+                      </Route>
 
-                    {/* Protected Nurse Module Routes */}
-                    <Route
-                      path="/nurse"
-                      element={
-                        <ProtectedRoute allowedRoles={['nurse', 'admin', 'super_admin', 'superadmin']}>
-                          <NurseLayout />
-                        </ProtectedRoute>
-                      }
-                    >
-                      <Route index element={<Navigate to="/nurse/dashboard" replace />} />
-                      <Route path="dashboard" element={<NurseDashboard />} />
-                      <Route path="opd/vitals" element={<RecordVitalsPage />} />
-                      <Route path="ipd/patient-ward" element={<WardTransferPage />} />
-                      <Route path="ipd/ward-transfer" element={<WardTransferPage />} />
-                      <Route path="ipd/nursing-notes" element={<NursingNotesPage />} />
-                      <Route path="ipd/medication-administration" element={<MedicationAdminPage />} />
-                      <Route path="er/*" element={<Navigate to="/nurse/opd/vitals" replace />} />
-                      <Route path="leave" element={<StaffLeavePage portalRole="Nurse" defaultEmpId="EMP-NUR-005" defaultName="Nurse Anjali Rao" defaultDept="ICU & Critical Care" />} />
-                      <Route path="shift-roster" element={<StaffShiftRosterPage portalRole="nurse" />} />
-                    </Route>
+                      {/* Protected Nurse Module Routes */}
+                      <Route
+                        path="/nurse"
+                        element={
+                          <ProtectedRoute allowedRoles={['nurse', 'admin', 'super_admin', 'superadmin']}>
+                            <NurseLayout />
+                          </ProtectedRoute>
+                        }
+                      >
+                        <Route index element={<Navigate to="/nurse/dashboard" replace />} />
+                        <Route path="dashboard" element={<NurseDashboard />} />
+                        <Route path="opd/vitals" element={<RecordVitalsPage />} />
+                        <Route path="ipd/patient-ward" element={<WardTransferPage />} />
+                        <Route path="ipd/ward-transfer" element={<WardTransferPage />} />
+                        <Route path="ipd/nursing-notes" element={<NursingNotesPage />} />
+                        <Route path="ipd/medication-administration" element={<MedicationAdminPage />} />
+                        <Route path="er" element={<NurseERCarePage />} />
+                        <Route path="er/care" element={<NurseERCarePage />} />
+                        <Route path="er/*" element={<NurseERCarePage />} />
+                        <Route path="leave" element={<StaffLeavePage portalRole="Nurse" defaultEmpId="EMP-NUR-005" defaultName="Nurse Anjali Rao" defaultDept="ICU & Critical Care" />} />
+                        <Route path="shift-roster" element={<StaffShiftRosterPage portalRole="nurse" />} />
+                      </Route>
 
-                    {/* Protected Super Admin Portal Routes */}
-                    <Route
-                      path="/super-admin"
-                      element={
-                        <ProtectedRoute allowedRoles={['super_admin', 'superadmin', 'admin']}>
-                          <SuperAdminLayout />
-                        </ProtectedRoute>
-                      }
-                    >
-                      <Route index element={<Navigate to="/super-admin/dashboard" replace />} />
-                      <Route path="dashboard" element={<SuperAdminDashboard />} />
+                      {/* Protected Super Admin Portal Routes */}
+                      <Route
+                        path="/super-admin"
+                        element={
+                          <ProtectedRoute allowedRoles={['super_admin', 'superadmin', 'admin']}>
+                            <SuperAdminLayout />
+                          </ProtectedRoute>
+                        }
+                      >
+                        <Route index element={<Navigate to="/super-admin/dashboard" replace />} />
+                        <Route path="dashboard" element={<SuperAdminDashboard />} />
 
-                      {/* Authentication & User Management */}
-                      <Route path="auth/login-history" element={<LoginHistoryPage />} />
-                      <Route path="auth/users" element={<UserManagementPage />} />
-                      <Route path="auth/roles" element={<RoleManagementPage />} />
-                      <Route path="auth/permissions" element={<PermissionManagementPage />} />
-                      <Route path="auth/department-assignment" element={<DepartmentAssignmentPage />} />
+                        {/* Authentication & User Management */}
+                        <Route path="auth/login-history" element={<LoginHistoryPage />} />
+                        <Route path="auth/users" element={<UserManagementPage />} />
+                        <Route path="auth/roles" element={<RoleManagementPage />} />
+                        <Route path="auth/permissions" element={<PermissionManagementPage />} />
+                        <Route path="auth/department-assignment" element={<DepartmentAssignmentPage />} />
 
-                      {/* Hospital Setup */}
-                      <Route path="hospital/profile" element={<HospitalProfilePage />} />
-                      <Route path="hospital/branches" element={<BranchManagementPage />} />
-                      <Route path="hospital/departments" element={<DepartmentManagementPage />} />
-                      <Route path="hospital/specializations" element={<DoctorSpecializationPage />} />
-                      <Route path="hospital/consultation-charges" element={<ConsultationChargesPage />} />
-                      <Route path="hospital/working-hours" element={<WorkingHoursPage />} />
-                      <Route path="hospital/leave-management" element={<LeaveManagementPage />} />
-                      <Route path="hospital/shift-rotation" element={<ShiftRotationPage />} />
+                        {/* Hospital Setup */}
+                        <Route path="hospital/profile" element={<HospitalProfilePage />} />
+                        <Route path="hospital/branches" element={<BranchManagementPage />} />
+                        <Route path="hospital/departments" element={<DepartmentManagementPage />} />
+                        <Route path="hospital/specializations" element={<DoctorSpecializationPage />} />
+                        <Route path="hospital/consultation-charges" element={<ConsultationChargesPage />} />
+                        <Route path="hospital/working-hours" element={<WorkingHoursPage />} />
+                        <Route path="hospital/leave-management" element={<LeaveManagementPage />} />
+                        <Route path="hospital/shift-rotation" element={<ShiftRotationPage />} />
 
-                      {/* IPD Monitoring */}
-                      <Route path="ipd/bed-occupancy" element={<BedOccupancyDashboardPage />} />
-                    </Route>
+                        {/* IPD Monitoring */}
+                        <Route path="ipd/bed-occupancy" element={<BedOccupancyDashboardPage />} />
+                      </Route>
 
-                    {/* Protected Billing & Revenue Management Routes */}
-                    <Route
-                      path="/billing"
-                      element={
-                        <ProtectedRoute allowedRoles={['billing', 'billing_manager', 'cashier', 'finance', 'admin', 'super_admin', 'superadmin']}>
-                          <BillingLayout />
-                        </ProtectedRoute>
-                      }
-                    >
-                      <Route index element={<Navigate to="/billing/dashboard" replace />} />
-                      <Route path="dashboard" element={<BillingDashboard />} />
-                      <Route path="invoices" element={<AllBillsPage />} />
-                      <Route path="create" element={<CreateBillPage />} />
-                      <Route path="opd" element={<OPDBillingPage />} />
-                      <Route path="ipd" element={<IPDBillingPage />} />
-                      <Route path="lab" element={<LabBillingPage />} />
-                      <Route path="pharmacy" element={<PharmacyBillingPage />} />
-                      <Route path="procedure" element={<ProcedureBillingPage />} />
-                      <Route path="payments" element={<PaymentCollectionPage />} />
-                      <Route path="receipts" element={<ReceiptsPage />} />
-                      <Route path="outstanding" element={<OutstandingDuesPage />} />
-                      <Route path="discounts" element={<DiscountsPage />} />
-                      <Route path="refunds" element={<RefundsPage />} />
-                      <Route path="cancellations" element={<CancellationsPage />} />
-                      <Route path="supplier-payables" element={<SupplierPayablesPage />} />
-                      <Route path="reports" element={<FinancialReportsPage />} />
-                    </Route>
+                      {/* Protected Billing & Revenue Management Routes */}
+                      <Route
+                        path="/billing"
+                        element={
+                          <ProtectedRoute allowedRoles={['billing', 'billing_manager', 'cashier', 'finance', 'admin', 'super_admin', 'superadmin']}>
+                            <BillingLayout />
+                          </ProtectedRoute>
+                        }
+                      >
+                        <Route index element={<Navigate to="/billing/dashboard" replace />} />
+                        <Route path="dashboard" element={<BillingDashboard />} />
+                        <Route path="invoices" element={<AllBillsPage />} />
+                        <Route path="create" element={<CreateBillPage />} />
+                        <Route path="opd" element={<OPDBillingPage />} />
+                        <Route path="ipd" element={<IPDBillingPage />} />
+                        <Route path="lab" element={<LabBillingPage />} />
+                        <Route path="pharmacy" element={<PharmacyBillingPage />} />
+                        <Route path="procedure" element={<ProcedureBillingPage />} />
+                        <Route path="payments" element={<PaymentCollectionPage />} />
+                        <Route path="receipts" element={<ReceiptsPage />} />
+                        <Route path="outstanding" element={<OutstandingDuesPage />} />
+                        <Route path="discounts" element={<DiscountsPage />} />
+                        <Route path="refunds" element={<RefundsPage />} />
+                        <Route path="cancellations" element={<CancellationsPage />} />
+                        <Route path="supplier-payables" element={<SupplierPayablesPage />} />
+                        <Route path="reports" element={<FinancialReportsPage />} />
+                      </Route>
 
-                    {/* Catch All Redirect */}
-                    <Route path="*" element={<CatchAllRoute />} />
-                  </Routes>
+                      {/* Catch All Redirect */}
+                      <Route path="*" element={<CatchAllRoute />} />
+                    </Routes>
 
-                  {/* Global Notification Toast Container */}
-                  <ToastContainer />
-                </BrowserRouter>
-              </ERProvider>
-            </SuperAdminProvider>
-          </PharmacyProvider>
-        </LabProvider>
-      </NurseProvider>
+                    {/* Global Notification Toast Container */}
+                    <ToastContainer />
+                  </BrowserRouter>
+                </ERProvider>
+              </SuperAdminProvider>
+            </PharmacyProvider>
+          </LabProvider>
+        </NurseProvider>
       </HMSProvider>
     </AuthProvider>
   );

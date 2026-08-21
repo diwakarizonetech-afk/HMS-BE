@@ -1,6 +1,9 @@
+import logging
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
+
+logger = logging.getLogger("hms.deps")
 
 from app.core.database import get_db
 from app.core.security import decode_access_token
@@ -225,9 +228,11 @@ def require_permission(module_name: str, action: str):
             matched_role = db.query(RoleItem).filter(RoleItem.role_name.ilike(f"%{role_val}%")).first()
 
         if not matched_role:
-            log_audit(
-                f"PERMISSION CHECK SKIPPED (no RoleItem found for role='{role_val}')",
-                {"module": module_name, "action": action},
+            logger.debug(
+                "PERMISSION CHECK SKIPPED (no RoleItem found for role='%s', module='%s', action='%s')",
+                role_val,
+                module_name,
+                action,
             )
             return current_user
 
