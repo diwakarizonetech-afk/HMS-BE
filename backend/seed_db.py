@@ -592,14 +592,14 @@ def seed_users(db) -> None:
       - Billing
     Plus global Super Admin and Central Billing.
     """
-    pw_admin = hash_password("admin123")
-    pw_doc = hash_password("Doctor@123")
-    pw_nurse = hash_password("Nurse@123")
-    pw_rec = hash_password("Reception@123")
-    pw_store = hash_password("Store@123")
-    pw_pharma = hash_password("Pharma@123")
-    pw_lab = hash_password("Lab@123")
-    pw_bill = hash_password("Billing@123")
+    pw_admin = hash_password("123456")
+    pw_doc = hash_password("123456")
+    pw_nurse = hash_password("123456")
+    pw_rec = hash_password("123456")
+    pw_store = hash_password("123456")
+    pw_pharma = hash_password("123456")
+    pw_lab = hash_password("123456")
+    pw_bill = hash_password("123456")
 
     users_data = [
         # --- Global Accounts ---
@@ -994,7 +994,7 @@ def seed_doctors_and_availability(db) -> None:
         "05:00 PM", "05:30 PM", "06:00 PM",
     ]
     working_days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
-    pw_doc = hash_password("Doctor@123")
+    pw_doc = hash_password("123456")
 
     doctors_master_data = [
         # --- CANTONMENT BRANCH (Main Hospital) ---

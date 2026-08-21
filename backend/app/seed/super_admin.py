@@ -10,7 +10,7 @@
 #
 # Credentials:
 #   Email:    admin@hms.com
-#   Password: admin123
+#   Password: 123456
 #
 # IMPORTANT: change this password after first login in a real deployment.
 
@@ -23,7 +23,7 @@ import app.models  # noqa: F401 - ensures all models are registered on Base.meta
 from app.models.user import User, UserRole
 
 SUPER_ADMIN_EMAIL = "admin@hms.com"
-SUPER_ADMIN_PASSWORD = "admin123"
+SUPER_ADMIN_PASSWORD = "123456"
 
 
 def seed_super_admin() -> None:
