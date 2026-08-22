@@ -966,9 +966,15 @@ def get_supplier_payables(db: Session = Depends(get_db)):
     return db.query(SupplierPayable).order_by(SupplierPayable.created_at.desc()).all()
 
 
+def _strip_timezone(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value
+    return value.replace(tzinfo=None)
+
+
 def _parse_any_date(value: Any, fallback: datetime | None = None) -> datetime:
     if isinstance(value, datetime):
-        return value
+        return _strip_timezone(value)
     raw = str(value or "").strip()
     for fmt in ("%Y-%m-%d", "%d-%m-%Y", "%Y/%m/%d", "%d/%m/%Y", "%Y-%m-%d %H:%M:%S"):
         try:
@@ -976,10 +982,9 @@ def _parse_any_date(value: Any, fallback: datetime | None = None) -> datetime:
         except ValueError:
             pass
     try:
-        return datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        return _strip_timezone(datetime.fromisoformat(raw.replace("Z", "+00:00")))
     except Exception:
-        return fallback or _now()
-
+        return _strip_timezone(fallback or _now())
 
 def _period_bounds(period: str, date_value: str | None) -> tuple[datetime, datetime, str]:
     base = _parse_any_date(date_value, _now()) if date_value else _now()
