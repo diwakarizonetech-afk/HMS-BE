@@ -35,8 +35,27 @@ export const UpdatePatientPage: React.FC = () => {
       alert('Alternate mobile number must be exactly 10 digits.');
       return;
     }
+    if (formData.pincode && formData.pincode.replace(/\D/g, '').length !== 6) {
+      alert('Pincode must be exactly 6 digits.');
+      return;
+    }
+    if (formData.aadhaar && formData.aadhaar.replace(/\D/g, '').length !== 12) {
+      alert('Aadhaar number must be exactly 12 digits.');
+      return;
+    }
+    if (formData.emergencyPhone && formData.emergencyPhone.replace(/\D/g, '').length !== 10) {
+      alert('Emergency contact phone number must be exactly 10 digits.');
+      return;
+    }
     if (currentPatient) {
-      updatePatient(currentPatient.id, formData);
+      updatePatient(currentPatient.id, {
+        ...formData,
+        mobile: formData.mobile ? formData.mobile.replace(/\D/g, '') : '',
+        altMobile: formData.altMobile ? formData.altMobile.replace(/\D/g, '') : '',
+        pincode: formData.pincode ? formData.pincode.replace(/\D/g, '') : '',
+        aadhaar: formData.aadhaar ? formData.aadhaar.replace(/\D/g, '') : '',
+        emergencyPhone: formData.emergencyPhone ? formData.emergencyPhone.replace(/\D/g, '') : '',
+      });
     }
   };
 
@@ -187,11 +206,13 @@ export const UpdatePatientPage: React.FC = () => {
                   </select>
                 </div>
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Aadhaar Number</label>
+                  <label className="block font-semibold text-slate-700 mb-1">Aadhaar Number (12 digits)</label>
                   <input
                     type="text"
+                    maxLength={12}
                     value={formData.aadhaar || ''}
-                    onChange={(e) => setFormData({ ...formData, aadhaar: e.target.value })}
+                    onChange={(e) => setFormData({ ...formData, aadhaar: e.target.value.replace(/\D/g, '').slice(0, 12) })}
+                    placeholder="12-digit Aadhaar Number"
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white"
                   />
                 </div>
@@ -246,6 +267,26 @@ export const UpdatePatientPage: React.FC = () => {
                     type="text"
                     value={formData.city || ''}
                     onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">State</label>
+                  <input
+                    type="text"
+                    value={formData.state || ''}
+                    onChange={(e) => setFormData({ ...formData, state: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Pincode (6 digits)</label>
+                  <input
+                    type="text"
+                    maxLength={6}
+                    value={formData.pincode || ''}
+                    onChange={(e) => setFormData({ ...formData, pincode: e.target.value.replace(/\D/g, '').slice(0, 6) })}
+                    placeholder="6-digit pincode"
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white"
                   />
                 </div>
@@ -319,11 +360,13 @@ export const UpdatePatientPage: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Phone Number</label>
+                  <label className="block font-semibold text-slate-700 mb-1">Phone Number (10 digits)</label>
                   <input
                     type="tel"
+                    maxLength={10}
                     value={formData.emergencyPhone || ''}
-                    onChange={(e) => setFormData({ ...formData, emergencyPhone: e.target.value })}
+                    onChange={(e) => setFormData({ ...formData, emergencyPhone: e.target.value.replace(/\D/g, '').slice(0, 10) })}
+                    placeholder="10-digit phone number"
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white"
                   />
                 </div>

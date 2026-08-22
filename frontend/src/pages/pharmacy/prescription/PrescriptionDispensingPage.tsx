@@ -17,6 +17,7 @@ import {
   CreditCard,
   DollarSign,
   Receipt,
+  Building2,
 } from 'lucide-react';
 import { usePharmacy } from '../../../context/PharmacyContext';
 import { PrescriptionOrder, PrescriptionItem } from '../../../types/hms';
@@ -24,7 +25,6 @@ import { useHMS } from '../../../context/HMSContext';
 import { useAuth } from '../../../context/AuthContext';
 import { updatePrescriptionApi } from '../../../services/api';
 import { parsePrescriptionDurationDays, parsePrescriptionFrequency, parseTabsPerDose } from '../../../utils/helpers';
-import { Building2 } from 'lucide-react';
 
 export const PrescriptionDispensingPage: React.FC = () => {
   const { addToast, storeItems, branches } = useHMS();
@@ -44,6 +44,8 @@ export const PrescriptionDispensingPage: React.FC = () => {
   const [dispenseModalOpen, setDispenseModalOpen] = useState(false);
   const [labelModalOpen, setLabelModalOpen] = useState(false);
   const [activeLabelItem, setActiveLabelItem] = useState<PrescriptionItem | null>(null);
+
+
 
   const filteredPrescriptions = prescriptions.filter((rx) => {
     const rxNum = rx?.prescriptionNumber || '';
@@ -303,6 +305,8 @@ export const PrescriptionDispensingPage: React.FC = () => {
     setLabelModalOpen(true);
   };
 
+
+
   // Helper for modal total calculation
   const modalTotalBill = selectedRx ? calculateRxTotal(selectedRx) : 0;
 
@@ -493,6 +497,7 @@ export const PrescriptionDispensingPage: React.FC = () => {
                           </>
                         )}
                       </span>
+
                     </td>
                     <td className="p-4 text-center">
                       <button
@@ -651,6 +656,7 @@ export const PrescriptionDispensingPage: React.FC = () => {
                   </div>
                 </div>
               </div>
+
             </div>
 
             {/* Medicines List Table */}

@@ -67,10 +67,34 @@ export const RegisterPatientPage: React.FC = () => {
       alert('Mobile number must be exactly 10 digits.');
       return;
     }
+    const cleanAltMobile = formData.altMobile ? formData.altMobile.replace(/\D/g, '') : '';
+    if (cleanAltMobile && cleanAltMobile.length !== 10) {
+      alert('Alternate mobile number must be exactly 10 digits.');
+      return;
+    }
+    const cleanPincode = formData.pincode.replace(/\D/g, '');
+    if (cleanPincode.length !== 6) {
+      alert('Pincode must be exactly 6 digits.');
+      return;
+    }
+    const cleanAadhaar = formData.aadhaar.replace(/\D/g, '');
+    if (cleanAadhaar.length !== 12) {
+      alert('Aadhaar number must be exactly 12 digits.');
+      return;
+    }
+    const cleanEmergPhone = formData.emergencyPhone.replace(/\D/g, '');
+    if (cleanEmergPhone.length !== 10) {
+      alert('Emergency contact phone number must be exactly 10 digits.');
+      return;
+    }
+
     const created = await addPatient({
       ...formData,
       mobile: cleanMobile,
-      altMobile: formData.altMobile ? formData.altMobile.replace(/\D/g, '').slice(0, 10) : '',
+      altMobile: cleanAltMobile,
+      pincode: cleanPincode,
+      aadhaar: cleanAadhaar,
+      emergencyPhone: cleanEmergPhone,
       branch: user?.branch || 'Main Branch',
     });
     navigate(`/reception/patient/search?query=${encodeURIComponent(created.uhid)}`);
@@ -260,13 +284,14 @@ export const RegisterPatientPage: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Pincode *</label>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Pincode (6 digits) *</label>
               <input
                 type="text"
                 required
+                maxLength={6}
                 value={formData.pincode}
-                onChange={(e) => setFormData({ ...formData, pincode: e.target.value })}
-                placeholder="e.g. 560038"
+                onChange={(e) => setFormData({ ...formData, pincode: e.target.value.replace(/\D/g, '').slice(0, 6) })}
+                placeholder="6-digit pincode (e.g. 560038)"
                 className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
               />
             </div>
@@ -320,13 +345,14 @@ export const RegisterPatientPage: React.FC = () => {
 
             <div className="space-y-3">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Aadhaar Number *</label>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Aadhaar Number (12 digits) *</label>
                 <input
                   type="text"
                   required
+                  maxLength={12}
                   value={formData.aadhaar}
-                  onChange={(e) => setFormData({ ...formData, aadhaar: e.target.value })}
-                  placeholder="e.g. 4532 8901 2345"
+                  onChange={(e) => setFormData({ ...formData, aadhaar: e.target.value.replace(/\D/g, '').slice(0, 12) })}
+                  placeholder="12-digit Aadhaar Number (e.g. 453289012345)"
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
                 />
               </div>
@@ -335,10 +361,11 @@ export const RegisterPatientPage: React.FC = () => {
                 <label className="block text-xs font-semibold text-slate-700 mb-1">PAN Number (Optional)</label>
                 <input
                   type="text"
+                  maxLength={10}
                   value={formData.pan}
-                  onChange={(e) => setFormData({ ...formData, pan: e.target.value })}
+                  onChange={(e) => setFormData({ ...formData, pan: e.target.value.toUpperCase().slice(0, 10) })}
                   placeholder="e.g. ABCDE1234F"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none uppercase"
                 />
               </div>
             </div>
@@ -379,13 +406,14 @@ export const RegisterPatientPage: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Phone Number *</label>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Phone Number (10 digits) *</label>
                   <input
                     type="tel"
                     required
+                    maxLength={10}
                     value={formData.emergencyPhone}
-                    onChange={(e) => setFormData({ ...formData, emergencyPhone: e.target.value })}
-                    placeholder="+91 98765 43212"
+                    onChange={(e) => setFormData({ ...formData, emergencyPhone: e.target.value.replace(/\D/g, '').slice(0, 10) })}
+                    placeholder="10-digit phone number"
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
                   />
                 </div>

@@ -1,4 +1,4 @@
-﻿# from contextlib import asynccontextmanager
+# from contextlib import asynccontextmanager
 # from fastapi import FastAPI
 # from fastapi.middleware.cors import CORSMiddleware
 
@@ -407,6 +407,18 @@ async def lifespan(app: FastAPI):
             # ER encounter ID linking columns on clinical / lab / pharmacy tables
             for tbl in ['patient_vitals', 'nursing_notes', 'medication_logs', 'sample_collections', 'prescriptions']:
                 conn.execute(sa.text(f"ALTER TABLE {tbl} ADD COLUMN IF NOT EXISTS er_encounter_id VARCHAR(100)"))
+
+            # Customer Returns extended metadata columns
+            for col_name, col_type in [
+                ('patient_uhid', 'VARCHAR(50)'),
+                ('patient_phone', 'VARCHAR(50)'),
+                ('batch_number', 'VARCHAR(100)'),
+                ('refund_method', "VARCHAR(50) DEFAULT 'Cash'"),
+            ]:
+                conn.execute(sa.text(f"ALTER TABLE customer_returns ADD COLUMN IF NOT EXISTS {col_name} {col_type}"))
+
+            # POS Invoices customer UHID column
+            conn.execute(sa.text("ALTER TABLE pos_invoices ADD COLUMN IF NOT EXISTS customer_uhid VARCHAR(50)"))
 
             # Drop NOT NULL constraints on patients table for optional fields
             for col in ['dob', 'address', 'city', 'state', 'country', 'pincode', 'aadhaar', 'emergency_contact_name', 'emergency_relationship', 'emergency_phone', 'mobile']:

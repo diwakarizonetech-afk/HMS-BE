@@ -251,13 +251,14 @@ export const WalkInEmergencyPage: React.FC = () => {
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
-              <label className="block font-semibold text-slate-700 text-xs mb-1">Mobile Phone Number *</label>
+              <label className="block font-semibold text-slate-700 text-xs mb-1">Mobile Phone Number (10 digits) *</label>
               <input
                 type="tel"
                 required
-                placeholder="e.g. +91 98765 12345"
+                maxLength={10}
+                placeholder="10-digit mobile number"
                 value={mobile}
-                onChange={(e) => setMobile(e.target.value)}
+                onChange={(e) => setMobile(e.target.value.replace(/\D/g, '').slice(0, 10))}
                 className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-medium text-slate-900 outline-none focus:bg-white focus:border-blue-500"
               />
             </div>

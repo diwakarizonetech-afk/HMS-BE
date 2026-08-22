@@ -245,12 +245,14 @@ export const HospitalProfilePage: React.FC = () => {
           </div>
 
           <div>
-            <label className="block font-bold text-slate-700 mb-1">Pincode</label>
+            <label className="block font-bold text-slate-700 mb-1">Pincode (6 digits)</label>
             <input
               type="text"
               disabled={!isEditing}
+              maxLength={6}
               value={formData.pincode}
-              onChange={(e) => setFormData({ ...formData, pincode: e.target.value })}
+              onChange={(e) => setFormData({ ...formData, pincode: e.target.value.replace(/\D/g, '').slice(0, 6) })}
+              placeholder="6-digit pincode"
               className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 font-semibold text-slate-900 disabled:opacity-80 outline-none"
             />
           </div>

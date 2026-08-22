@@ -199,6 +199,61 @@ export const RecordVitalsPage: React.FC = () => {
     window.scrollTo({ top: 220, behavior: 'smooth' });
   };
 
+  // Current patient's position in branch queue
+  const currentPatientIndex = useMemo(() => {
+    if (!selectedPatient) return -1;
+    return branchPatients.findIndex(
+      (p) => (p.uhid || '').toLowerCase().trim() === (selectedPatient.uhid || '').toLowerCase().trim()
+    );
+  }, [branchPatients, selectedPatient]);
+
+  // Patients with pending (unrecorded) vitals in branch
+  const unrecordedBranchPatients = useMemo(() => {
+    return branchPatients.filter((p) => {
+      const pUhid = (p.uhid || '').toLowerCase().trim();
+      return !vitals.some((v) => (v.patientUhid || '').toLowerCase().trim() === pUhid);
+    });
+  }, [branchPatients, vitals]);
+
+  // Helper to find the next patient to record vitals for
+  const getNextPatientToRecord = (currentPat: Patient | null) => {
+    if (branchPatients.length === 0) return null;
+    if (!currentPat) return branchPatients[0];
+
+    const currentUhid = (currentPat.uhid || '').toLowerCase().trim();
+    const currIdx = branchPatients.findIndex(
+      (p) => (p.uhid || '').toLowerCase().trim() === currentUhid
+    );
+
+    // 1. Look for next patient after currIdx who doesn't have vitals recorded yet
+    for (let i = currIdx + 1; i < branchPatients.length; i++) {
+      const p = branchPatients[i];
+      const pUhid = (p.uhid || '').toLowerCase().trim();
+      const hasVitals = vitals.some((v) => (v.patientUhid || '').toLowerCase().trim() === pUhid);
+      if (!hasVitals) {
+        return p;
+      }
+    }
+
+    // 2. Wrap around from index 0 to currIdx - 1 for unrecorded patient
+    for (let i = 0; i < currIdx; i++) {
+      const p = branchPatients[i];
+      const pUhid = (p.uhid || '').toLowerCase().trim();
+      const hasVitals = vitals.some((v) => (v.patientUhid || '').toLowerCase().trim() === pUhid);
+      if (!hasVitals) {
+        return p;
+      }
+    }
+
+    // 3. If all have vitals recorded, just return next patient in branch list
+    if (branchPatients.length > 1) {
+      const nextIdx = (currIdx + 1) % branchPatients.length;
+      return branchPatients[nextIdx];
+    }
+
+    return null;
+  };
+
   // Submit Vitals Form
   const handleSaveVitals = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -237,10 +292,14 @@ export const RecordVitalsPage: React.FC = () => {
     const currentBranch = (activeBranch !== 'All' ? activeBranch : selectedPatient.branch) || user?.branch || 'Main Branch';
     const nurseStaffName = user?.name ? `Nurse (${user.name})` : 'Nurse Staff';
 
+    const savedPatientName = `${selectedPatient.firstName} ${selectedPatient.lastName}`;
+    const savedUhid = selectedPatient.uhid;
+    const isEditMode = Boolean(editingVitalId);
+
     if (editingVitalId) {
       await updateVitalSign(editingVitalId, {
         patientUhid: selectedPatient.uhid,
-        patientName: `${selectedPatient.firstName} ${selectedPatient.lastName}`,
+        patientName: savedPatientName,
         height: heightVal,
         weight: weightVal,
         temperature: tempVal,
@@ -257,10 +316,11 @@ export const RecordVitalsPage: React.FC = () => {
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       });
       setEditingVitalId(null);
+      addToast('success', 'Vitals Updated', `Updated vitals for ${savedPatientName} (${savedUhid}).`);
     } else {
       await addVitalSign({
         patientUhid: selectedPatient.uhid,
-        patientName: `${selectedPatient.firstName} ${selectedPatient.lastName}`,
+        patientName: savedPatientName,
         age: selectedPatient.age,
         gender: selectedPatient.gender,
         doctorId: doctor.id,
@@ -283,8 +343,31 @@ export const RecordVitalsPage: React.FC = () => {
       });
     }
 
-    // Reset editable fields
-    setVitalsForm(defaultVitalsForm);
+    // Automatically load the next patient waiting for vitals
+    const nextPatient = getNextPatientToRecord(selectedPatient);
+
+    if (nextPatient && nextPatient.uhid !== savedUhid) {
+      lastLoadedPatientRef.current = null;
+      setSelectedPatient(nextPatient);
+      setEditingVitalId(null);
+      setVitalsForm(defaultVitalsForm);
+      if (!isEditMode) {
+        addToast(
+          'success',
+          'Vitals Saved — Next Patient Loaded',
+          `Vitals recorded for ${savedPatientName}. Loaded next patient: ${nextPatient.firstName} ${nextPatient.lastName} (${nextPatient.uhid}).`
+        );
+      }
+    } else {
+      setVitalsForm(defaultVitalsForm);
+      setEditingVitalId(null);
+      if (!isEditMode) {
+        addToast('success', 'Vitals Saved', `Vitals recorded for ${savedPatientName} (${savedUhid}).`);
+      }
+    }
+
+    // Smooth scroll to vitals card for the next patient
+    window.scrollTo({ top: 220, behavior: 'smooth' });
   };
 
   // Filtered Vitals Table with Priority Sorting
@@ -359,6 +442,91 @@ export const RecordVitalsPage: React.FC = () => {
 
       {/* STEP 2: PATIENT INFORMATION CARD */}
       <PatientInfoCard patient={selectedPatient} />
+
+      {/* PATIENT QUEUE QUICK NAVIGATION BAR */}
+      {branchPatients.length > 0 && (
+        <div className="bg-white px-5 py-3 rounded-2xl border border-slate-200 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-700 flex items-center justify-center font-bold">
+              <Activity className="w-4 h-4" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-extrabold text-slate-900">
+                  Patient Vitals Queue
+                </span>
+                {currentPatientIndex >= 0 && (
+                  <span className="bg-slate-100 text-slate-700 font-bold px-2 py-0.5 rounded-full text-[10px]">
+                    Patient {currentPatientIndex + 1} of {branchPatients.length}
+                  </span>
+                )}
+                {unrecordedBranchPatients.length > 0 ? (
+                  <span className="bg-amber-100 text-amber-800 font-extrabold px-2 py-0.5 rounded-full text-[10px] flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+                    {unrecordedBranchPatients.length} Pending Vitals
+                  </span>
+                ) : (
+                  <span className="bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full text-[10px]">
+                    ✓ All Vitals Recorded
+                  </span>
+                )}
+              </div>
+              <p className="text-[11px] text-slate-500">
+                Saving vitals automatically loads the next patient in queue.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              disabled={branchPatients.length <= 1}
+              onClick={() => {
+                if (branchPatients.length > 1) {
+                  const prevIdx = (currentPatientIndex - 1 + branchPatients.length) % branchPatients.length;
+                  handleSelectPatient(branchPatients[prevIdx]);
+                }
+              }}
+              className="px-3 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-700 font-bold flex items-center gap-1 disabled:opacity-40 cursor-pointer text-xs"
+              title="Previous Patient in Queue"
+            >
+              <ChevronLeft className="w-3.5 h-3.5" />
+              <span>Prev Patient</span>
+            </button>
+
+            <button
+              type="button"
+              disabled={branchPatients.length <= 1}
+              onClick={() => {
+                if (branchPatients.length > 1) {
+                  const nextIdx = (currentPatientIndex + 1) % branchPatients.length;
+                  handleSelectPatient(branchPatients[nextIdx]);
+                }
+              }}
+              className="px-3 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-700 font-bold flex items-center gap-1 disabled:opacity-40 cursor-pointer text-xs"
+              title="Next Patient in Queue"
+            >
+              <span>Next Patient</span>
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+
+            {unrecordedBranchPatients.length > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  const nextUnrec = getNextPatientToRecord(selectedPatient);
+                  if (nextUnrec) handleSelectPatient(nextUnrec);
+                }}
+                className="px-3 py-1.5 rounded-xl bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 text-indigo-800 font-bold flex items-center gap-1 cursor-pointer text-xs"
+                title="Jump to Next Patient with Pending Vitals"
+              >
+                <span>Next Pending</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* STEP 3: VITALS RECORDING / EDITING FORM */}
       {selectedPatient && (
@@ -557,7 +725,7 @@ export const RecordVitalsPage: React.FC = () => {
                 }`}
               >
                 {editingVitalId ? <CheckCircle2 className="w-4 h-4" /> : <Save className="w-4 h-4" />}
-                <span>{editingVitalId ? 'Update Vitals Record' : 'Save Vitals Record'}</span>
+                <span>{editingVitalId ? 'Update Vitals Record' : 'Save Vitals & Next Patient ➔'}</span>
               </button>
             </div>
           </form>

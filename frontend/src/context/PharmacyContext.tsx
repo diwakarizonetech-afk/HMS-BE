@@ -22,6 +22,8 @@ import {
   createPurchaseApi,
   fetchCustomerReturnsApi,
   createCustomerReturnApi,
+  updateCustomerReturnApi,
+  deleteCustomerReturnApi,
   fetchSupplierReturnsApi,
   createSupplierReturnApi,
   fetchInvoicesApi,
@@ -55,6 +57,8 @@ interface PharmacyContextType {
   addBatch: (payload: any) => Promise<any>;
   addPurchase: (payload: any) => Promise<any>;
   addCustomerReturn: (payload: any) => Promise<any>;
+  updateCustomerReturn: (id: string, payload: any) => Promise<any>;
+  deleteCustomerReturn: (id: string) => Promise<void>;
   addSupplierReturn: (payload: any) => Promise<any>;
 }
 
@@ -157,6 +161,17 @@ export const PharmacyProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     return created;
   };
 
+  const updateCustomerReturn = async (id: string, payload: any) => {
+    const updated = await updateCustomerReturnApi(id, payload);
+    setCustomerReturns((prev) => prev.map((r) => (r.id === id ? { ...r, ...updated } : r)));
+    return updated;
+  };
+
+  const deleteCustomerReturn = async (id: string) => {
+    await deleteCustomerReturnApi(id);
+    setCustomerReturns((prev) => prev.filter((r) => r.id !== id));
+  };
+
   const addSupplierReturn = async (payload: any) => {
     const created = await createSupplierReturnApi(payload);
     setSupplierReturns((prev) => [created, ...prev]);
@@ -190,6 +205,8 @@ export const PharmacyProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         addBatch,
         addPurchase,
         addCustomerReturn,
+        updateCustomerReturn,
+        deleteCustomerReturn,
         addSupplierReturn,
       }}
     >
@@ -226,6 +243,8 @@ export const usePharmacy = () => {
       addBatch: async () => {},
       addPurchase: async () => {},
       addCustomerReturn: async () => {},
+      updateCustomerReturn: async () => {},
+      deleteCustomerReturn: async () => {},
       addSupplierReturn: async () => {},
     };
   }

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   ShoppingCart,
   Scan,
@@ -7,13 +7,14 @@ import {
   Minus,
   Trash2,
   CreditCard,
-  QrCode,
   DollarSign,
   Printer,
   Download,
   X,
   CheckCircle2,
   User,
+  UserCheck,
+  UserPlus,
   Phone,
   Tag,
   Receipt,
@@ -23,15 +24,19 @@ import {
   Filter,
   Eye,
   ArrowUpRight,
+  ChevronDown,
+  RefreshCw,
+  BadgePercent,
+  Check,
   Sparkles,
 } from 'lucide-react';
 import { usePharmacy } from '../../../context/PharmacyContext';
-import { Medicine, POSSaleItem, POSInvoice } from '../../../types/hms';
+import { Medicine, POSSaleItem, POSInvoice, Patient } from '../../../types/hms';
 import { useHMS } from '../../../context/HMSContext';
-import { createInvoiceApi } from '../../../services/api';
+import { createInvoiceApi, fetchPatientsApi } from '../../../services/api';
 
 export const DirectSalesPOSPage: React.FC = () => {
-  const { addToast } = useHMS();
+  const { addToast, patients: hmsPatients = [] } = useHMS();
   const { medicines, invoices: initialInvoices } = usePharmacy();
   const [recentInvoices, setRecentInvoices] = useState<POSInvoice[]>(initialInvoices);
 
@@ -45,16 +50,96 @@ export const DirectSalesPOSPage: React.FC = () => {
   const [historySearch, setHistorySearch] = useState('');
   const [historyPaymentFilter, setHistoryPaymentFilter] = useState('All');
 
-  // Cart State
-  const [cart, setCart] = useState<POSSaleItem[]>([]);
+  // Customer / Patient Fetch & Manual Input State
+  const [allPatients, setAllPatients] = useState<Patient[]>(hmsPatients);
+  const [customerMode, setCustomerMode] = useState<'search' | 'manual'>('search');
+  const [searchPatientQuery, setSearchPatientQuery] = useState('');
+  const [showPatientDropdown, setShowPatientDropdown] = useState(false);
+  const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   const [customerName, setCustomerName] = useState('Walk-in Customer');
   const [customerPhone, setCustomerPhone] = useState('+91 98765 43210');
+  const [customerUhid, setCustomerUhid] = useState('');
+  const patientSearchRef = useRef<HTMLDivElement>(null);
+
+  // Cart State
+  const [cart, setCart] = useState<POSSaleItem[]>([]);
   const [discountPercent, setDiscountPercent] = useState(5);
   const [paymentMethod, setPaymentMethod] = useState<'Cash' | 'UPI' | 'Card' | 'Split'>('UPI');
 
   // Invoice Preview Modal
   const [checkoutModalOpen, setCheckoutModalOpen] = useState(false);
   const [completedInvoice, setCompletedInvoice] = useState<POSInvoice | null>(null);
+
+  // Load registered patients on mount
+  useEffect(() => {
+    const loadPatients = async () => {
+      try {
+        const data = await fetchPatientsApi();
+        if (data && Array.isArray(data) && data.length > 0) {
+          setAllPatients(data);
+        } else if (hmsPatients.length > 0) {
+          setAllPatients(hmsPatients);
+        }
+      } catch (err) {
+        if (hmsPatients.length > 0) {
+          setAllPatients(hmsPatients);
+        }
+      }
+    };
+    loadPatients();
+  }, [hmsPatients]);
+
+  // Click outside to close patient search dropdown
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (patientSearchRef.current && !patientSearchRef.current.contains(e.target as Node)) {
+        setShowPatientDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Filtered Patients for Lookup Dropdown
+  const filteredPatients = useMemo(() => {
+    const query = searchPatientQuery.trim().toLowerCase();
+    if (!query) return allPatients.slice(0, 15);
+    return allPatients.filter((p) => {
+      const name = `${p.firstName || ''} ${p.lastName || ''}`.toLowerCase();
+      const uhid = (p.uhid || '').toLowerCase();
+      const mobile = (p.mobile || '').toLowerCase();
+      return name.includes(query) || uhid.includes(query) || mobile.includes(query);
+    });
+  }, [allPatients, searchPatientQuery]);
+
+  const handleSelectPatient = (p: Patient) => {
+    const fullName = `${p.firstName || ''} ${p.lastName || ''}`.trim() || 'Registered Patient';
+    setSelectedPatient(p);
+    setCustomerName(fullName);
+    setCustomerPhone(p.mobile || '');
+    setCustomerUhid(p.uhid || '');
+    setShowPatientDropdown(false);
+    setSearchPatientQuery('');
+    addToast('info', 'Patient Attached', `Attached patient ${fullName} (${p.uhid || 'UHID'}) to sale.`);
+  };
+
+  const handleClearPatient = () => {
+    setSelectedPatient(null);
+    setCustomerName('');
+    setCustomerPhone('');
+    setCustomerUhid('');
+    setSearchPatientQuery('');
+    setShowPatientDropdown(false);
+  };
+
+  const handleSetWalkIn = () => {
+    setSelectedPatient(null);
+    setCustomerName('Walk-in Customer');
+    setCustomerPhone('+91 98765 43210');
+    setCustomerUhid('');
+    setSearchPatientQuery('');
+    setShowPatientDropdown(false);
+  };
 
   // Search Filter for Medicines in POS
   const filteredMedicines = medicines.filter((m) => {
@@ -82,6 +167,7 @@ export const DirectSalesPOSPage: React.FC = () => {
     const invNum = inv?.invoiceNumber || '';
     const custName = inv?.customerName || '';
     const custPhone = inv?.customerPhone || '';
+    const custUhid = inv?.customerUhid || inv?.patientUhid || '';
     const items = inv?.items || [];
 
     const matchesSearch =
@@ -89,6 +175,7 @@ export const DirectSalesPOSPage: React.FC = () => {
       invNum.toLowerCase().includes(query) ||
       custName.toLowerCase().includes(query) ||
       custPhone.toLowerCase().includes(query) ||
+      custUhid.toLowerCase().includes(query) ||
       items.some((i) => (i?.medicineName || '').toLowerCase().includes(query));
 
     const matchesPayment =
@@ -176,17 +263,19 @@ export const DirectSalesPOSPage: React.FC = () => {
     0
   );
 
-  const handleCheckout = async () => {
+  const executeCheckout = async (chosenMethod = paymentMethod, txnId?: string) => {
     if (cart.length === 0) {
       addToast('warning', 'Empty Cart', 'Shopping cart is empty! Add medicines before checkout.');
       return;
     }
 
     const invoicePayload = {
-      customerName: customerName || 'Walk-in Customer',
-      customerPhone: customerPhone || '+91 98765 43210',
+      customerName: (customerName || '').trim() || 'Walk-in Customer',
+      customerPhone: (customerPhone || '').trim() || '+91 98765 43210',
+      customerUhid: (customerUhid || '').trim() || undefined,
+      patientUhid: (customerUhid || '').trim() || undefined,
       date: new Date().toLocaleString(),
-      paymentMethod,
+      paymentMethod: chosenMethod,
       subtotal,
       discount: discountAmount,
       gstAmount,
@@ -196,10 +285,6 @@ export const DirectSalesPOSPage: React.FC = () => {
 
     let created: POSInvoice;
     try {
-      // This deducts real batch stock (FEFO) for every item on the backend
-      // and fails with a clear error if there isn't enough on hand -- it
-      // used to just fabricate an invoice number client-side and never
-      // touch the database or inventory at all.
       created = await createInvoiceApi(invoicePayload);
     } catch (err) {
       console.error('POS checkout failed:', err);
@@ -213,11 +298,16 @@ export const DirectSalesPOSPage: React.FC = () => {
     setCheckoutModalOpen(true);
     setCart([]);
 
+    const refNote = txnId ? ` (Ref: ${txnId})` : '';
     addToast(
       'success',
       'POS Sale Completed! 🎉',
-      `Invoice ${created.invoiceNumber} recorded. Total Paid: ₹${grandTotal.toFixed(2)} (${paymentMethod})`
+      `Invoice ${created.invoiceNumber} recorded. Total Paid: ₹${grandTotal.toFixed(2)} via ${chosenMethod}${refNote}`
     );
+  };
+
+  const handleCheckout = async () => {
+    await executeCheckout(paymentMethod);
   };
 
   const handlePrintReceipt = () => {
@@ -379,27 +469,216 @@ export const DirectSalesPOSPage: React.FC = () => {
                 )}
               </div>
 
-              {/* Customer Details Inputs */}
-              <div className="grid grid-cols-2 gap-2 my-3 text-xs">
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-0.5">Customer Name</label>
-                  <input
-                    type="text"
-                    value={customerName}
-                    onChange={(e) => setCustomerName(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 font-semibold text-slate-800 outline-none"
-                  />
+              {/* Customer / Patient Selection & Manual Entry Box */}
+              <div className="my-3 bg-slate-50/90 border border-slate-200/90 rounded-xl p-3 space-y-2.5 text-xs">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 font-bold text-slate-800 text-[11px]">
+                    <User className="w-3.5 h-3.5 text-cyan-600" /> Customer Information
+                  </div>
+
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCustomerMode('search');
+                        setShowPatientDropdown(false);
+                      }}
+                      className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-all ${
+                        customerMode === 'search'
+                          ? 'bg-cyan-600 text-white shadow-2xs'
+                          : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
+                      }`}
+                    >
+                      Fetch Patient
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCustomerMode('manual');
+                        setShowPatientDropdown(false);
+                      }}
+                      className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-all ${
+                        customerMode === 'manual'
+                          ? 'bg-cyan-600 text-white shadow-2xs'
+                          : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
+                      }`}
+                    >
+                      Manual / Walk-in
+                    </button>
+                  </div>
                 </div>
 
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-0.5">Mobile No</label>
-                  <input
-                    type="text"
-                    value={customerPhone}
-                    onChange={(e) => setCustomerPhone(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 font-semibold text-slate-800 outline-none"
-                  />
-                </div>
+                {customerMode === 'search' ? (
+                  <div className="space-y-2 relative" ref={patientSearchRef}>
+                    {!selectedPatient ? (
+                      <div className="relative">
+                        <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                        <input
+                          type="text"
+                          value={searchPatientQuery}
+                          onChange={(e) => {
+                            setSearchPatientQuery(e.target.value);
+                            setShowPatientDropdown(true);
+                          }}
+                          onFocus={() => setShowPatientDropdown(true)}
+                          placeholder="Search patient by Name, UHID, or Mobile..."
+                          className="w-full bg-white border border-slate-300 rounded-lg pl-8 pr-7 py-1.5 font-semibold text-slate-900 outline-none focus:border-cyan-500 text-xs shadow-2xs"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPatientDropdown(!showPatientDropdown)}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
+                        >
+                          <ChevronDown className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ) : (
+                      /* Selected Patient Card */
+                      <div className="bg-white p-2.5 rounded-lg border border-cyan-300 shadow-2xs flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className="w-7 h-7 rounded-lg bg-cyan-100 text-cyan-800 flex items-center justify-center font-black text-xs">
+                            {selectedPatient.firstName?.charAt(0) || 'P'}
+                          </div>
+                          <div>
+                            <p className="font-bold text-slate-900 text-xs flex items-center gap-1.5">
+                              {customerName}
+                              {customerUhid && (
+                                <span className="text-[9px] font-bold bg-indigo-50 text-indigo-700 px-1.5 py-0.2 rounded border border-indigo-200">
+                                  {customerUhid}
+                                </span>
+                              )}
+                            </p>
+                            <p className="text-[10px] text-slate-500 flex items-center gap-1 mt-0.5">
+                              <Phone className="w-2.5 h-2.5 text-slate-400" /> {customerPhone || 'No Phone'} • Verified Patient
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleClearPatient}
+                          className="text-slate-400 hover:text-rose-600 p-1 rounded hover:bg-rose-50 cursor-pointer"
+                          title="Clear / Change Patient"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Patient Search Results Dropdown */}
+                    {showPatientDropdown && !selectedPatient && (
+                      <div className="absolute z-30 top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-2xl p-1.5 space-y-1 max-h-56 overflow-y-auto">
+                        <div className="flex items-center justify-between px-2 py-1 border-b border-slate-100">
+                          <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">
+                            Hospital Patients ({filteredPatients.length})
+                          </p>
+                          <span className="text-[9px] text-slate-400">Click to fetch</span>
+                        </div>
+
+                        {filteredPatients.length === 0 ? (
+                          <div className="p-3 text-center text-slate-500 text-xs">
+                            No patient matching "{searchPatientQuery}".
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setCustomerMode('manual');
+                                setCustomerName(searchPatientQuery);
+                                setShowPatientDropdown(false);
+                              }}
+                              className="block mx-auto mt-1 text-[11px] font-bold text-cyan-600 hover:underline"
+                            >
+                              Enter "{searchPatientQuery}" as manual customer →
+                            </button>
+                          </div>
+                        ) : (
+                          filteredPatients.map((p) => (
+                            <div
+                              key={p.id || p.uhid}
+                              onClick={() => handleSelectPatient(p)}
+                              className="p-1.5 hover:bg-cyan-50 rounded-lg cursor-pointer flex items-center justify-between transition-colors border border-transparent hover:border-cyan-100"
+                            >
+                              <div className="flex items-center gap-2">
+                                <div className="w-6 h-6 rounded-full bg-cyan-100 text-cyan-700 flex items-center justify-center font-bold text-[10px]">
+                                  {p.firstName?.charAt(0) || 'P'}
+                                </div>
+                                <div>
+                                  <p className="font-bold text-slate-900 text-xs">
+                                    {p.firstName} {p.lastName}
+                                  </p>
+                                  <p className="text-[9px] text-slate-500">
+                                    {p.mobile || 'No Mobile'}
+                                  </p>
+                                </div>
+                              </div>
+                              <span className="font-mono text-[9px] font-bold bg-indigo-50 text-indigo-700 px-1.5 py-0.2 rounded border border-indigo-200">
+                                {p.uhid || 'UHID'}
+                              </span>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    )}
+
+                    <div className="flex items-center justify-between text-[10px]">
+                      <span className="text-slate-400">
+                        {selectedPatient ? 'Patient record attached to invoice.' : 'Pick from hospital registry.'}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handleSetWalkIn}
+                        className="text-cyan-700 font-bold hover:underline cursor-pointer"
+                      >
+                        Set Walk-in Customer
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  /* Manual Customer Inputs */
+                  <div className="space-y-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-500 mb-0.5">Customer Name *</label>
+                        <input
+                          type="text"
+                          value={customerName}
+                          onChange={(e) => setCustomerName(e.target.value)}
+                          placeholder="e.g. Rahul Sharma"
+                          required
+                          className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 font-bold text-slate-800 outline-none focus:border-cyan-400 text-xs"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-500 mb-0.5">Mobile No</label>
+                        <input
+                          type="text"
+                          value={customerPhone}
+                          onChange={(e) => setCustomerPhone(e.target.value)}
+                          placeholder="+91 98765 43210"
+                          className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 font-semibold text-slate-800 outline-none focus:border-cyan-400 text-xs"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-1 text-[10px]">
+                      <div className="flex items-center gap-1">
+                        <label className="text-slate-500 font-medium">UHID (Optional):</label>
+                        <input
+                          type="text"
+                          value={customerUhid}
+                          onChange={(e) => setCustomerUhid(e.target.value)}
+                          placeholder="UHID-..."
+                          className="w-28 bg-white border border-slate-200 rounded px-1.5 py-0.5 text-[10px] font-mono outline-none"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleSetWalkIn}
+                        className="text-cyan-700 font-bold hover:underline cursor-pointer"
+                      >
+                        Reset to Walk-in
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Cart Items List */}
@@ -485,7 +764,7 @@ export const DirectSalesPOSPage: React.FC = () => {
                     <button
                       key={method}
                       onClick={() => setPaymentMethod(method)}
-                      className={`py-1.5 rounded-lg font-bold text-[11px] transition-all cursor-pointer ${
+                      className={`py-1.5 rounded-lg font-bold text-[10px] transition-all cursor-pointer truncate text-center ${
                         paymentMethod === method
                           ? 'bg-cyan-600 text-white shadow-sm'
                           : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
@@ -497,12 +776,14 @@ export const DirectSalesPOSPage: React.FC = () => {
                 </div>
               </div>
 
+
+
               <button
                 onClick={handleCheckout}
                 disabled={cart.length === 0}
                 className="w-full py-3 rounded-xl font-bold text-xs text-white bg-cyan-600 hover:bg-cyan-700 shadow-md shadow-cyan-500/20 transition-all cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2"
               >
-                <CheckCircle2 className="w-4 h-4" /> Checkout & Generate Receipt
+                <CheckCircle2 className="w-4 h-4" /> Checkout & Generate Receipt (₹{grandTotal.toFixed(2)})
               </button>
             </div>
           </div>
@@ -556,7 +837,7 @@ export const DirectSalesPOSPage: React.FC = () => {
                 type="text"
                 value={historySearch}
                 onChange={(e) => setHistorySearch(e.target.value)}
-                placeholder="Search Invoice #, Customer, Mobile or Medicine..."
+                placeholder="Search Invoice #, Customer, UHID, Mobile or Medicine..."
                 className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2 font-medium text-slate-800 outline-none"
               />
             </div>
@@ -600,57 +881,73 @@ export const DirectSalesPOSPage: React.FC = () => {
                       </td>
                     </tr>
                   ) : (
-                    filteredInvoices.map((inv) => (
-                      <tr key={inv.id} className="hover:bg-slate-50/80 transition-colors">
-                        <td className="p-4 font-black text-cyan-700">{inv.invoiceNumber}</td>
-                        <td className="p-4 text-slate-600 font-medium">{inv.date}</td>
-                        <td className="p-4">
-                          <p className="font-bold text-slate-900">{inv.customerName}</p>
-                          <p className="text-[10px] text-slate-500 font-semibold">{inv.customerPhone}</p>
-                        </td>
-                        <td className="p-4">
-                          <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-slate-100 text-slate-800 border border-slate-200">
-                            {inv.paymentMethod}
-                          </span>
-                        </td>
-                        <td className="p-4">
-                          <div className="flex flex-wrap gap-1 max-w-md">
-                            {inv.items.map((item) => (
-                              <span
-                                key={item.id}
-                                className="text-[10px] font-semibold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200/80"
+                    filteredInvoices.map((inv) => {
+                      const uhid = inv.customerUhid || inv.patientUhid;
+                      return (
+                        <tr key={inv.id} className="hover:bg-slate-50/80 transition-colors">
+                          <td className="p-4 font-black text-cyan-700">{inv.invoiceNumber}</td>
+                          <td className="p-4 text-slate-600 font-medium">{inv.date}</td>
+                          <td className="p-4">
+                            <p className="font-bold text-slate-900 flex items-center gap-1.5">
+                              {inv.customerName}
+                              {uhid && (
+                                <span className="font-mono text-[9px] font-bold bg-indigo-50 text-indigo-700 px-1.5 py-0.2 rounded border border-indigo-200">
+                                  {uhid}
+                                </span>
+                              )}
+                            </p>
+                            <p className="text-[10px] text-slate-500 font-semibold">{inv.customerPhone}</p>
+                          </td>
+                          <td className="p-4">
+                            <span
+                              className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${
+                                inv.paymentMethod === 'Razorpay'
+                                  ? 'bg-[#0c2340] text-white border-blue-900 shadow-2xs'
+                                  : 'bg-slate-100 text-slate-800 border-slate-200'
+                              }`}
+                            >
+                              {inv.paymentMethod}
+                            </span>
+                          </td>
+                          <td className="p-4">
+                            <div className="flex flex-wrap gap-1 max-w-md">
+                              {inv.items.map((item) => (
+                                <span
+                                  key={item.id}
+                                  className="text-[10px] font-semibold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200/80"
+                                >
+                                  {item.medicineName} <strong className="text-cyan-700">({item.quantity}x)</strong>
+                                </span>
+                              ))}
+                            </div>
+                          </td>
+                          <td className="p-4 font-black text-emerald-700 text-sm">
+                            ₹{inv.totalAmount.toFixed(2)}
+                          </td>
+                          <td className="p-4 text-center">
+                            <div className="flex items-center justify-center gap-1.5">
+                              <button
+                                onClick={() => handleViewPastInvoice(inv)}
+                                className="px-2.5 py-1.5 rounded-lg text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 transition-colors cursor-pointer flex items-center gap-1"
+                                title="View Tax Receipt"
                               >
-                                {item.medicineName} <strong className="text-cyan-700">({item.quantity}x)</strong>
-                              </span>
-                            ))}
-                          </div>
-                        </td>
-                        <td className="p-4 font-black text-emerald-700 text-sm">
-                          ₹{inv.totalAmount.toFixed(2)}
-                        </td>
-                        <td className="p-4 text-center">
-                          <div className="flex items-center justify-center gap-1.5">
-                            <button
-                              onClick={() => handleViewPastInvoice(inv)}
-                              className="px-2.5 py-1.5 rounded-lg text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 transition-colors cursor-pointer flex items-center gap-1"
-                              title="View Tax Receipt"
-                            >
-                              <Eye className="w-3.5 h-3.5 text-slate-600" /> Receipt
-                            </button>
-                            <button
-                              onClick={() => {
-                                setCompletedInvoice(inv);
-                                setTimeout(() => window.print(), 100);
-                              }}
-                              className="p-1.5 rounded-lg text-slate-500 hover:text-cyan-600 hover:bg-cyan-50 transition-colors cursor-pointer"
-                              title="Print Receipt"
-                            >
-                              <Printer className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))
+                                <Eye className="w-3.5 h-3.5 text-slate-600" /> Receipt
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setCompletedInvoice(inv);
+                                  setTimeout(() => window.print(), 100);
+                                }}
+                                className="p-1.5 rounded-lg text-slate-500 hover:text-cyan-600 hover:bg-cyan-50 transition-colors cursor-pointer"
+                                title="Print Receipt"
+                              >
+                                <Printer className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
                   )}
                 </tbody>
               </table>
@@ -681,8 +978,20 @@ export const DirectSalesPOSPage: React.FC = () => {
 
               <div className="border-t border-b border-slate-200 py-1.5 space-y-0.5">
                 <p><strong>Customer:</strong> {completedInvoice.customerName}</p>
+                {(completedInvoice.customerUhid || completedInvoice.patientUhid) && (
+                  <p><strong>UHID:</strong> {completedInvoice.customerUhid || completedInvoice.patientUhid}</p>
+                )}
                 <p><strong>Phone:</strong> {completedInvoice.customerPhone}</p>
-                <p><strong>Payment Method:</strong> {completedInvoice.paymentMethod}</p>
+                <p>
+                  <strong>Payment Method:</strong>{' '}
+                  {completedInvoice.paymentMethod === 'Razorpay' ? (
+                    <span className="inline-flex items-center gap-1 text-white bg-[#0c2340] px-1.5 py-0.2 rounded text-[10px] font-bold">
+                      <Sparkles className="w-2.5 h-2.5 text-blue-400" /> Razorpay
+                    </span>
+                  ) : (
+                    completedInvoice.paymentMethod
+                  )}
+                </p>
               </div>
 
               <div className="space-y-1">

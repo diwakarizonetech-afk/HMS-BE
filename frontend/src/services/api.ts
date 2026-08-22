@@ -2185,6 +2185,19 @@ export async function createCustomerReturnApi(payload: any): Promise<any> {
   });
 }
 
+export async function updateCustomerReturnApi(id: string, payload: any): Promise<any> {
+  return apiRequest(`/pharmacy/customer-returns/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteCustomerReturnApi(id: string): Promise<void> {
+  return apiRequest<void>(`/pharmacy/customer-returns/${id}`, {
+    method: 'DELETE',
+  });
+}
+
 export async function fetchSupplierReturnsApi(branch?: string): Promise<any[]> {
   const url = branch ? `/pharmacy/supplier-returns?branch=${encodeURIComponent(branch)}` : '/pharmacy/supplier-returns';
   return apiRequest<any[]>(url);

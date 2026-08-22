@@ -571,7 +571,7 @@ export interface PrescriptionOrder {
   totalAmount?: number;
   amountPaid?: number;
   dueAmount?: number;
-  paymentMethod?: 'Cash' | 'UPI' | 'Card' | 'IPD Credit / Post Bill' | 'Bank Transfer';
+  paymentMethod?: 'Cash' | 'UPI' | 'Card' | 'IPD Credit / Post Bill' | 'Bank Transfer' | 'Razorpay' | string;
   items: PrescriptionItem[];
   erEncounterId?: string;
   isEmergency?: boolean;
@@ -595,10 +595,12 @@ export interface POSInvoice {
   invoiceNumber: string;
   customerName: string;
   customerPhone: string;
+  customerUhid?: string;
+  patientUhid?: string;
   date: string;
   createdAt?: string;
   created_at?: string;
-  paymentMethod: 'Cash' | 'UPI' | 'Card' | 'Split';
+  paymentMethod: 'Cash' | 'UPI' | 'Card' | 'Split' | 'Razorpay' | string;
   subtotal: number;
   discount: number;
   gstAmount: number;
@@ -613,12 +615,20 @@ export interface CustomerReturn {
   returnNumber: string;
   invoiceNumber: string;
   patientName: string;
+  patientUhid?: string;
+  patientPhone?: string;
   medicineName: string;
+  medicineId?: string;
+  batchNumber?: string;
   quantity: number;
   reason: string;
   refundAmount: number;
+  refundMethod?: 'Cash' | 'UPI' | 'Card' | 'Credit Note' | 'Original Payment' | string;
   status: 'Approved' | 'Pending' | 'Rejected';
   date: string;
+  currentStock?: number;
+  createdAt?: string;
+  branch?: string;
 }
 
 export interface SupplierReturn {

@@ -67,14 +67,16 @@ def _row(r) -> dict:
         "invoice_number": "invoiceNumber", "purchase_date": "purchaseDate",
         "payment_method": "paymentMethod", "total_amount": "totalAmount",
         "prescription_number": "prescriptionNumber", "patient_uhid": "patientUhid",
-        "patient_name": "patientName", "patient_age": "patientAge", "patient_gender": "patientGender",
+        "patient_name": "patientName", "patient_phone": "patientPhone",
+        "patient_age": "patientAge", "patient_gender": "patientGender",
         "er_encounter_id": "erEncounterId", "is_emergency": "isEmergency",
         "doctor_name": "doctorName", "visit_date": "visitDate", "payment_status": "paymentStatus",
         "amount_paid": "amountPaid", "due_amount": "dueAmount",
-        "invoice_number": "invoiceNumber", "customer_name": "customerName",
-        "customer_phone": "customerPhone", "gst_amount": "gstAmount",
+        "customer_name": "customerName", "customer_phone": "customerPhone",
+        "gst_amount": "gstAmount", "batch_number": "batchNumber",
         "return_number": "returnNumber", "refund_amount": "refundAmount",
-        "credit_note_no": "creditNoteNo", "created_at": "createdAt", "updated_at": "updatedAt",
+        "refund_method": "refundMethod", "credit_note_no": "creditNoteNo",
+        "created_at": "createdAt", "updated_at": "updatedAt",
     }
     return {mapping.get(k, k): v for k, v in d.items()}
 
@@ -625,7 +627,9 @@ def create_invoice(payload: dict, db: Session = Depends(get_db), current_user: U
 
     row = POSInvoice(
         invoice_number=payload.get("invoiceNumber", inum),
-        customer_name=payload.get("customerName", ""), customer_phone=payload.get("customerPhone", ""),
+        customer_name=payload.get("customerName", "Walk-in Customer"),
+        customer_phone=payload.get("customerPhone", ""),
+        customer_uhid=payload.get("customerUhid", payload.get("patientUhid", None)),
         date=payload.get("date", datetime.now().strftime("%Y-%m-%d %I:%M %p")),
         payment_method=payload.get("paymentMethod", "Cash"),
         subtotal=payload.get("subtotal", 0), discount=payload.get("discount", 0),
@@ -668,20 +672,30 @@ def list_customer_returns(
 
 @router.post("/customer-returns", status_code=201)
 def create_customer_return(payload: dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_active_user), _perm=_perm_create):
-    rnum = f"CRET-{datetime.now().year}-{''.join(random.choices(string.digits, k=3))}"
+    rnum = f"CRET-{datetime.now().year}-{''.join(random.choices(string.digits, k=4))}"
     ret_branch = payload.get("branch") or current_user.branch
     # A customer handing back unused medicine goes back into stock in that branch
     _restock_fefo(
-        db, medicine_id="", medicine_name=payload.get("medicineName", ""),
+        db,
+        medicine_id=payload.get("medicineId", "") or payload.get("medicine_id", ""),
+        medicine_name=payload.get("medicineName", "") or payload.get("medicine_name", ""),
         qty=int(payload.get("quantity", 0) or 0),
         branch=ret_branch,
     )
     row = CustomerReturn(
         return_number=payload.get("returnNumber", rnum),
-        invoice_number=payload.get("invoiceNumber", ""), patient_name=payload.get("patientName", ""),
-        medicine_name=payload.get("medicineName", ""), quantity=payload.get("quantity", 0),
-        reason=payload.get("reason", ""), refund_amount=payload.get("refundAmount", 0),
-        status=payload.get("status", "Pending"), date=payload.get("date", datetime.now().strftime("%Y-%m-%d")),
+        invoice_number=payload.get("invoiceNumber", "") or payload.get("invoice_number", ""),
+        patient_name=payload.get("patientName", "") or payload.get("patient_name", ""),
+        patient_uhid=payload.get("patientUhid", "") or payload.get("patient_uhid", ""),
+        patient_phone=payload.get("patientPhone", "") or payload.get("patient_phone", ""),
+        medicine_name=payload.get("medicineName", "") or payload.get("medicine_name", ""),
+        batch_number=payload.get("batchNumber", "") or payload.get("batch_number", ""),
+        quantity=int(payload.get("quantity", 0) or 0),
+        reason=payload.get("reason", ""),
+        refund_amount=float(payload.get("refundAmount", 0) or payload.get("refund_amount", 0) or 0.0),
+        refund_method=payload.get("refundMethod", "Cash") or payload.get("refund_method", "Cash"),
+        status=payload.get("status", "Approved"),
+        date=payload.get("date", datetime.now().strftime("%Y-%m-%d")),
         branch=ret_branch,
     )
     db.add(row); db.commit(); db.refresh(row)
@@ -692,10 +706,27 @@ def create_customer_return(payload: dict, db: Session = Depends(get_db), current
 def update_customer_return(item_id: str, payload: dict, db: Session = Depends(get_db), _=_auth, _perm=_perm_edit):
     row = db.get(CustomerReturn, item_id)
     if not row: raise HTTPException(404, "Return not found")
+    field_map = {
+        "returnNumber": "return_number", "invoiceNumber": "invoice_number",
+        "patientName": "patient_name", "patientUhid": "patient_uhid",
+        "patientPhone": "patient_phone", "medicineName": "medicine_name",
+        "batchNumber": "batch_number", "refundAmount": "refund_amount",
+        "refundMethod": "refund_method",
+    }
     for k, v in payload.items():
-        if hasattr(row, k): setattr(row, k, v)
+        col = field_map.get(k, k)
+        if hasattr(row, col):
+            setattr(row, col, v)
     db.commit(); db.refresh(row)
     return _row(row)
+
+
+@router.delete("/customer-returns/{item_id}", status_code=204)
+def delete_customer_return(item_id: str, db: Session = Depends(get_db), _=_auth, _perm=_perm_delete):
+    row = db.get(CustomerReturn, item_id)
+    if row:
+        db.delete(row)
+        db.commit()
 
 
 # ── Supplier Returns ──────────────────────────────────────────

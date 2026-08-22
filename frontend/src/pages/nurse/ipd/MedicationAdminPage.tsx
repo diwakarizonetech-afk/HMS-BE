@@ -8,6 +8,12 @@ import {
   Clock,
   Save,
   AlertCircle,
+  XCircle,
+  PauseCircle,
+  Calendar,
+  User,
+  Sparkles,
+  Check,
 } from 'lucide-react';
 import { MedicationAdmin } from '../../../types/nurse';
 import { Patient } from '../../../types/hms';
@@ -18,6 +24,7 @@ import { useAuth } from '../../../context/AuthContext';
 import { PatientSearch } from '../../../components/nurse/PatientSearch';
 import { PatientInfoCard } from '../../../components/nurse/PatientInfoCard';
 import { NurseBranchSelector } from '../../../components/nurse/NurseBranchSelector';
+import { Modal } from '../../../components/common/Modal';
 import { isPatientAllocatedToBranch, matchBranch } from '../../../utils/helpers';
 
 export const MedicationAdminPage: React.FC = () => {
@@ -145,6 +152,76 @@ export const MedicationAdminPage: React.FC = () => {
     setIsUpdateModalOpen(true);
   };
 
+  // Helper to render distinct status badges
+  const renderStatusBadge = (status?: string) => {
+    const st = (status || 'Scheduled').toLowerCase();
+    if (st === 'given' || st === 'administered' || st === 'completed') {
+      return (
+        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-200 shadow-2xs">
+          <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+          <span>Given</span>
+        </span>
+      );
+    }
+    if (st === 'missed') {
+      return (
+        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-rose-100 text-rose-800 border border-rose-200 shadow-2xs">
+          <XCircle className="w-3 h-3 text-rose-600" />
+          <span>Missed Dose</span>
+        </span>
+      );
+    }
+    if (st === 'delayed') {
+      return (
+        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-100 text-amber-800 border border-amber-200 shadow-2xs">
+          <AlertCircle className="w-3 h-3 text-amber-600" />
+          <span>Delayed</span>
+        </span>
+      );
+    }
+    if (st === 'hold' || st === 'paused') {
+      return (
+        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-purple-100 text-purple-800 border border-purple-200 shadow-2xs">
+          <PauseCircle className="w-3 h-3 text-purple-600" />
+          <span>On Hold</span>
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-blue-100 text-blue-800 border border-blue-200 shadow-2xs">
+        <Clock className="w-3 h-3 text-blue-600" />
+        <span>Scheduled</span>
+      </span>
+    );
+  };
+
+  // Quick 1-click Mark as Given
+  const handleQuickMarkGiven = async (med: MedicationAdmin) => {
+    const assignedNurseName = user?.name || user?.username || 'Staff Nurse';
+    const currentBranch = (activeBranch !== 'All' ? activeBranch : selectedPatient?.branch) || user?.branch || 'Main Branch';
+    const currentTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+    if (med.id.startsWith('presc-') || med.id.startsWith('rx-')) {
+      await addMedicationAdmin({
+        ...med,
+        givenTime: currentTime,
+        status: 'Given',
+        remarks: 'Administered per doctor dosage schedule.',
+        nurseName: assignedNurseName,
+        branch: currentBranch,
+      });
+    } else {
+      await updateMedicationAdmin(med.id, {
+        givenTime: currentTime,
+        status: 'Given',
+        remarks: 'Administered per doctor dosage schedule.',
+        nurseName: assignedNurseName,
+        branch: currentBranch,
+      });
+    }
+    addToast('success', 'Medication Given', `${med.medicineName} marked as GIVEN at ${currentTime}.`);
+  };
+
   // Submit Status Update
   const handleSaveMedStatus = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -173,6 +250,7 @@ export const MedicationAdminPage: React.FC = () => {
       });
     }
 
+    addToast('success', 'Status Updated', `${selectedMedToUpdate.medicineName} status updated to ${updateForm.status}.`);
     setIsUpdateModalOpen(false);
   };
 
@@ -189,10 +267,10 @@ export const MedicationAdminPage: React.FC = () => {
     });
 
     return matched.sort((a, b) => {
-      const isAGiven = a.status === 'Administered' || a.status === 'Completed';
-      const isBGiven = b.status === 'Administered' || b.status === 'Completed';
+      const isAGiven = a.status === 'Given';
+      const isBGiven = b.status === 'Given';
       if (isAGiven !== isBGiven) {
-        return isAGiven ? 1 : -1; // completed/administered last
+        return isAGiven ? 1 : -1; // given/administered last
       }
       const patA = patients?.find((p) => p.uhid.toLowerCase().trim() === (a.patientUhid || '').toLowerCase().trim());
       const patB = patients?.find((p) => p.uhid.toLowerCase().trim() === (b.patientUhid || '').toLowerCase().trim());
@@ -289,25 +367,56 @@ export const MedicationAdminPage: React.FC = () => {
                   </div>
 
                   {/* UPDATE MEDICATION STATUS ACTION BUTTON */}
-                  <div className="pt-2 border-t border-slate-200 flex items-center justify-between">
-                    <span
-                      className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                        med.status === 'Given'
-                          ? 'bg-emerald-100 text-emerald-700'
-                          : 'bg-amber-100 text-amber-700'
-                      }`}
-                    >
-                      {med.status === 'Given' ? <CheckCircle2 className="w-3 h-3" /> : <Clock className="w-3 h-3" />}
-                      <span>{med.status}</span>
-                    </span>
+                  <div className="pt-2.5 border-t border-slate-200 space-y-2">
+                    {/* Administration details if not just scheduled */}
+                    {(med.givenTime || med.remarks || med.status !== 'Scheduled') && (
+                      <div className="bg-white/90 border border-slate-200 rounded-lg p-2 text-[11px] text-slate-700 space-y-1">
+                        <div className="flex items-center justify-between">
+                          <span className="font-semibold text-slate-500">
+                            Logged By: <strong className="text-slate-800">{med.nurseName || 'Nurse Staff'}</strong>
+                          </span>
+                          {med.givenTime && (
+                            <span className="font-mono text-blue-700 font-bold bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100">
+                              Time: {med.givenTime}
+                            </span>
+                          )}
+                        </div>
+                        {med.remarks && (
+                          <p className="text-[10px] text-slate-600 italic">
+                            Notes: {med.remarks}
+                          </p>
+                        )}
+                      </div>
+                    )}
 
-                    <button
-                      onClick={() => handleOpenUpdateModal(med)}
-                      className="px-3 py-1.5 rounded-xl bg-cyan-600 hover:bg-cyan-700 text-white font-bold text-xs shadow-xs flex items-center gap-1.5 cursor-pointer"
-                    >
-                      <CheckCircle2 className="w-3.5 h-3.5" />
-                      <span>Update Status</span>
-                    </button>
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <div>
+                        {renderStatusBadge(med.status)}
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        {med.status !== 'Given' && (
+                          <button
+                            type="button"
+                            onClick={() => handleQuickMarkGiven(med)}
+                            className="px-2.5 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 font-bold text-xs flex items-center gap-1 cursor-pointer transition-all shadow-2xs"
+                            title="Quickly mark dose as Given at current time"
+                          >
+                            <Check className="w-3.5 h-3.5" />
+                            <span>Mark Given</span>
+                          </button>
+                        )}
+
+                        <button
+                          type="button"
+                          onClick={() => handleOpenUpdateModal(med)}
+                          className="px-3 py-1.5 rounded-xl bg-cyan-600 hover:bg-cyan-700 text-white font-bold text-xs shadow-xs flex items-center gap-1.5 cursor-pointer transition-all"
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          <span>Update Status</span>
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -377,7 +486,7 @@ export const MedicationAdminPage: React.FC = () => {
                     className={`transition-colors ${
                       isEmergencyMed
                         ? 'bg-rose-50/40 border-l-4 border-l-rose-500 hover:bg-rose-50/70'
-                        : m.status === 'Administered' || m.status === 'Completed'
+                        : m.status === 'Given'
                         ? 'hover:bg-slate-50/50 opacity-90'
                         : 'hover:bg-slate-50/70'
                     }`}
@@ -398,7 +507,7 @@ export const MedicationAdminPage: React.FC = () => {
                     <td className="py-3.5 px-4 text-slate-700 font-mono">{m.scheduledTime} / {m.givenTime || '-'}</td>
                     <td className="py-3.5 px-4 font-semibold text-slate-800">{m.nurseName}</td>
                     <td className="py-3.5 px-4">
-                      <span className={`font-bold ${isEmergencyMed ? 'text-rose-700' : 'text-emerald-600'}`}>{m.status}</span>
+                      {renderStatusBadge(m.status)}
                     </td>
                     <td className="py-3.5 px-4 text-right">
                       <div className="flex items-center justify-end gap-1.5">
@@ -442,53 +551,101 @@ export const MedicationAdminPage: React.FC = () => {
         <Modal
           isOpen={isUpdateModalOpen}
           onClose={() => setIsUpdateModalOpen(false)}
-          title={`Update Medication Status - ${selectedMedToUpdate.medicineName}`}
-          subtitle={`Patient: ${selectedMedToUpdate.patientName}`}
+          title={`Update Medication Status`}
+          subtitle={`${selectedMedToUpdate.medicineName} (${selectedMedToUpdate.dosage}) for ${selectedMedToUpdate.patientName}`}
           maxWidth="md"
         >
           <form onSubmit={handleSaveMedStatus} className="space-y-4 text-xs">
+            {/* Interactive Status Selector Cards */}
             <div>
-              <label className="block font-bold text-slate-700 mb-1">Administration Status</label>
-              <select
-                value={updateForm.status}
-                onChange={(e) => setUpdateForm({ ...updateForm, status: e.target.value as any })}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 font-bold text-slate-900 outline-none"
-              >
-                <option value="Given">Given / Administered</option>
-                <option value="Missed">Missed Dose</option>
-                <option value="Delayed">Delayed</option>
-                <option value="Scheduled">Scheduled</option>
-              </select>
+              <label className="block font-bold text-slate-700 mb-1.5">Select Administration Status *</label>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {[
+                  { value: 'Given', label: 'Given / Administered', color: 'emerald', icon: CheckCircle2, desc: 'Dose taken by patient' },
+                  { value: 'Missed', label: 'Missed Dose', color: 'rose', icon: XCircle, desc: 'Patient refused / absent' },
+                  { value: 'Delayed', label: 'Delayed', color: 'amber', icon: AlertCircle, desc: 'Given after sched time' },
+                  { value: 'Scheduled', label: 'Scheduled', color: 'blue', icon: Clock, desc: 'Pending administration' },
+                ].map((st) => {
+                  const isSelected = updateForm.status === st.value;
+                  const Icon = st.icon;
+                  return (
+                    <div
+                      key={st.value}
+                      onClick={() => setUpdateForm({ ...updateForm, status: st.value as any })}
+                      className={`p-2.5 rounded-xl border cursor-pointer transition-all flex flex-col justify-between ${
+                        isSelected
+                          ? `bg-${st.color}-50 border-${st.color}-500 ring-2 ring-${st.color}-500/20`
+                          : 'bg-slate-50 border-slate-200 hover:bg-slate-100/80'
+                      }`}
+                    >
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <Icon className={`w-4 h-4 ${isSelected ? `text-${st.color}-600 font-bold` : 'text-slate-400'}`} />
+                        <span className={`font-bold text-xs ${isSelected ? `text-${st.color}-900` : 'text-slate-700'}`}>
+                          {st.label}
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-slate-500">{st.desc}</p>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
 
-            <div>
-              <label className="block font-bold text-slate-700 mb-1">Given Time</label>
-              <input
-                type="text"
-                value={updateForm.givenTime}
-                onChange={(e) => setUpdateForm({ ...updateForm, givenTime: e.target.value })}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 font-bold text-slate-900 outline-none"
-              />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Administration Time *</label>
+                <input
+                  type="text"
+                  required
+                  value={updateForm.givenTime}
+                  onChange={(e) => setUpdateForm({ ...updateForm, givenTime: e.target.value })}
+                  placeholder="e.g. 08:30 AM"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 font-bold text-slate-900 outline-none focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Administered By (Nurse) *</label>
+                <input
+                  type="text"
+                  required
+                  value={updateForm.administeredBy}
+                  onChange={(e) => setUpdateForm({ ...updateForm, administeredBy: e.target.value })}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 font-bold text-slate-900 outline-none focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500"
+                />
+              </div>
             </div>
 
+            {/* Quick Remarks Presets */}
             <div>
-              <label className="block font-bold text-slate-700 mb-1">Administered By</label>
-              <input
-                type="text"
-                value={updateForm.administeredBy}
-                onChange={(e) => setUpdateForm({ ...updateForm, administeredBy: e.target.value })}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 font-bold text-slate-900 outline-none"
-              />
-            </div>
-
-            <div>
-              <label className="block font-bold text-slate-700 mb-1">Nurse Remarks</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="font-bold text-slate-700">Nurse Remarks & Observations</label>
+                <span className="text-[10px] text-slate-400">Click preset to autofill:</span>
+              </div>
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                {[
+                  'Dose administered after meals',
+                  'Patient NPO / Fasting',
+                  'Patient Refused Dose',
+                  'Delayed due to diagnostic test',
+                  'Vitals checked before dose',
+                ].map((preset) => (
+                  <button
+                    key={preset}
+                    type="button"
+                    onClick={() => setUpdateForm({ ...updateForm, remarks: preset })}
+                    className="px-2 py-0.5 rounded-lg bg-slate-100 hover:bg-cyan-50 hover:text-cyan-700 text-[10px] font-semibold text-slate-600 border border-slate-200 cursor-pointer transition-colors"
+                  >
+                    + {preset}
+                  </button>
+                ))}
+              </div>
               <textarea
                 rows={2}
                 value={updateForm.remarks}
                 onChange={(e) => setUpdateForm({ ...updateForm, remarks: e.target.value })}
-                placeholder="Administration notes..."
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 font-medium text-slate-900 outline-none"
+                placeholder="Notes on patient response, discomfort, or administration condition..."
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 font-medium text-slate-900 outline-none focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500"
               />
             </div>
 
@@ -496,15 +653,15 @@ export const MedicationAdminPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setIsUpdateModalOpen(false)}
-                className="px-4 py-2 bg-slate-100 rounded-xl font-bold cursor-pointer"
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold cursor-pointer transition-colors"
               >
                 Cancel
               </button>
               <button
                 type="submit"
-                className="px-5 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-xl font-bold cursor-pointer"
+                className="px-5 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-xl font-bold cursor-pointer transition-all shadow-md shadow-cyan-600/20"
               >
-                Save Administration Log
+                Save Administration Status
               </button>
             </div>
           </form>

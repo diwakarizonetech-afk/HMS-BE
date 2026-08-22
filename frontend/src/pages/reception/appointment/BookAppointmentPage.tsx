@@ -1,10 +1,26 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useHMS } from '../../../context/HMSContext';
 import { useAuth } from '../../../context/AuthContext';
-import { fetchBranchesApi, fetchNursesApi } from '../../../services/api';
+import { fetchBranchesApi, fetchNursesApi, fetchPatientsApi } from '../../../services/api';
+import { Patient } from '../../../types/hms';
 import { getCurrentDateFormatted } from '../../../utils/helpers';
-import { CalendarPlus, RotateCcw, CheckCircle2, Building2, Clock, User, ShieldCheck, XCircle, Inbox, Siren } from 'lucide-react';
+import {
+  CalendarPlus,
+  RotateCcw,
+  CheckCircle2,
+  Building2,
+  Clock,
+  User,
+  ShieldCheck,
+  XCircle,
+  Inbox,
+  Siren,
+  Search,
+  Phone,
+  ChevronDown,
+  Sparkles,
+} from 'lucide-react';
 
 export const BookAppointmentPage: React.FC = () => {
   const [searchParams] = useSearchParams();
@@ -40,6 +56,12 @@ export const BookAppointmentPage: React.FC = () => {
   const [bookingResult, setBookingResult] = useState<{ uhid: string; token: string } | null>(null);
   const [processingId, setProcessingId] = useState<string | null>(null);
 
+  // Patient Register Autocomplete & Autofill
+  const [allFetchedPatients, setAllFetchedPatients] = useState<Patient[]>(patients);
+  const [showPatientDropdown, setShowPatientDropdown] = useState(false);
+  const [autofilledPatient, setAutofilledPatient] = useState<Patient | null>(null);
+  const patientDropdownRef = useRef<HTMLDivElement>(null);
+
   // Fetch branches from API or merge with defaults
   useEffect(() => {
     fetchBranchesApi()
@@ -62,6 +84,78 @@ export const BookAppointmentPage: React.FC = () => {
       }
     }
   }, [branches, userBranch]);
+
+  // Fetch full patient registry from API on load
+  useEffect(() => {
+    fetchPatientsApi()
+      .then((data) => {
+        if (Array.isArray(data) && data.length > 0) {
+          setAllFetchedPatients(data);
+        }
+      })
+      .catch(() => null);
+  }, []);
+
+  // Keep allFetchedPatients updated when context patients change
+  useEffect(() => {
+    if (patients.length > 0) {
+      setAllFetchedPatients((prev) => {
+        const map = new Map<string, Patient>();
+        prev.forEach((p) => map.set(p.uhid || p.id, p));
+        patients.forEach((p) => map.set(p.uhid || p.id, p));
+        return Array.from(map.values());
+      });
+    }
+  }, [patients]);
+
+  // Close patient suggestions dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (patientDropdownRef.current && !patientDropdownRef.current.contains(e.target as Node)) {
+        setShowPatientDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Filtered patients matching typed query (Name, UHID, or Mobile)
+  const filteredPatients = useMemo(() => {
+    const list = allFetchedPatients.length > 0 ? allFetchedPatients : patients;
+    const q = (emergencyName || '').trim().toLowerCase();
+    if (!q) {
+      return list.slice(0, 15);
+    }
+    return list.filter((p) => {
+      const fullName = `${p.firstName || ''} ${p.lastName || ''}`.toLowerCase();
+      const uhid = (p.uhid || '').toLowerCase();
+      const mob = (p.mobile || '').toLowerCase();
+      return fullName.includes(q) || uhid.includes(q) || mob.includes(q);
+    }).slice(0, 15);
+  }, [allFetchedPatients, patients, emergencyName]);
+
+  // Autofill patient details from selected registry entry
+  const handleSelectAutofillPatient = (p: Patient) => {
+    const fullName = `${p.firstName || ''} ${p.lastName || ''}`.trim();
+    setEmergencyName(fullName);
+    setEmergencyMobile(p.mobile ? p.mobile.replace(/\D/g, '').slice(0, 10) : '');
+    setEmergencyAge(p.age ?? 30);
+    setEmergencyGender((p.gender as any) || 'Male');
+    setEmergencyBloodGroup(p.bloodGroup || 'O+');
+    setAutofilledPatient(p);
+    setShowPatientDropdown(false);
+    addToast('info', 'Patient Autofilled', `Loaded ${fullName} (${p.uhid}) from patient registry.`);
+  };
+
+  // Clear autofill selection
+  const handleClearAutofill = () => {
+    setAutofilledPatient(null);
+    setEmergencyName('');
+    setEmergencyMobile('');
+    setEmergencyAge('');
+    setEmergencyGender('Male');
+    setEmergencyBloodGroup('O+');
+  };
 
   // Sync selectedUhid with patients list
   useEffect(() => {
@@ -192,10 +286,12 @@ export const BookAppointmentPage: React.FC = () => {
       ? emergencyName.trim()
       : `${patientObj.firstName} ${patientObj.lastName}`.trim();
 
+    const cleanEmergencyMobile = emergencyMobile ? emergencyMobile.replace(/\D/g, '').slice(0, 10) : '';
+
     const created = await bookAppointment({
-      patientUhid: bookingMode === 'emergency' ? '' : patientObj.uhid,
+      patientUhid: bookingMode === 'emergency' ? (autofilledPatient?.uhid || '') : patientObj.uhid,
       patientName: patientFullName,
-      patientMobile: bookingMode === 'emergency' ? emergencyMobile : patientObj.mobile,
+      patientMobile: bookingMode === 'emergency' ? cleanEmergencyMobile : patientObj.mobile,
       department: selectedDoctorObj.department || selectedDept,
       doctorId: selectedDoctorObj.id,
       doctorName: selectedDoctorObj.name,
@@ -357,35 +453,192 @@ export const BookAppointmentPage: React.FC = () => {
           </div>
           {bookingMode === 'emergency' ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 text-xs">
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">Patient Name *</label>
-                <input required value={emergencyName} onChange={(e) => setEmergencyName(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5" placeholder="Type emergency patient name" />
+              {/* Patient Name with Search / Autofill from Register & Manual Typing */}
+              <div className="relative" ref={patientDropdownRef}>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="font-bold text-slate-700 flex items-center gap-1.5">
+                    <User className="w-3.5 h-3.5 text-rose-600" />
+                    <span>Patient Name *</span>
+                  </label>
+                  <span className="text-[10px] text-slate-400">
+                    Search register or type manually
+                  </span>
+                </div>
+
+                {autofilledPatient && (
+                  <div className="flex items-center justify-between bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg text-[11px] text-emerald-800 font-semibold mb-1.5">
+                    <span className="flex items-center gap-1">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                      Autofilled from Register: <strong>{autofilledPatient.uhid}</strong>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleClearAutofill}
+                      className="text-slate-400 hover:text-rose-600 text-[10px] font-bold underline ml-2 cursor-pointer"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                )}
+
+                <div className="relative">
+                  <input
+                    required
+                    type="text"
+                    value={emergencyName}
+                    onChange={(e) => {
+                      setEmergencyName(e.target.value);
+                      setShowPatientDropdown(true);
+                      if (
+                        autofilledPatient &&
+                        e.target.value !== `${autofilledPatient.firstName} ${autofilledPatient.lastName}`.trim()
+                      ) {
+                        setAutofilledPatient(null);
+                      }
+                    }}
+                    onFocus={() => setShowPatientDropdown(true)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-8 py-2.5 font-semibold text-slate-900 outline-none focus:bg-white focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500"
+                    placeholder="Search registered patient or type new name..."
+                  />
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <button
+                    type="button"
+                    onClick={() => setShowPatientDropdown(!showPatientDropdown)}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+                  >
+                    <ChevronDown className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+
+                {/* Dropdown Suggestions */}
+                {showPatientDropdown && (
+                  <div className="absolute z-30 top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-2xl p-1.5 space-y-1 max-h-64 overflow-y-auto">
+                    <div className="flex items-center justify-between px-2 py-1 border-b border-slate-100">
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                        Registered Patients ({filteredPatients.length})
+                      </p>
+                      <span className="text-[10px] text-blue-600 font-semibold">Click to autofill</span>
+                    </div>
+
+                    {filteredPatients.length === 0 ? (
+                      <div className="p-3 text-center text-slate-500 text-xs">
+                        No registered patient matching "{emergencyName}".
+                        <p className="text-[10px] text-emerald-600 font-bold mt-1">
+                          ✓ Ready to proceed as new manual patient
+                        </p>
+                      </div>
+                    ) : (
+                      filteredPatients.map((p) => (
+                        <div
+                          key={p.id || p.uhid}
+                          onClick={() => handleSelectAutofillPatient(p)}
+                          className="p-2 hover:bg-rose-50/70 rounded-lg cursor-pointer flex items-center justify-between transition-colors border border-transparent hover:border-rose-100"
+                        >
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-7 h-7 rounded-full bg-rose-100 text-rose-700 flex items-center justify-center font-black text-xs shrink-0">
+                              {p.firstName?.charAt(0) || 'P'}
+                            </div>
+                            <div>
+                              <p className="font-bold text-slate-900 text-xs flex items-center gap-1.5">
+                                {p.firstName} {p.lastName}
+                                {p.gender && (
+                                  <span className="text-[10px] text-slate-500 font-normal">
+                                    ({p.gender}, {p.age || 30}y)
+                                  </span>
+                                )}
+                              </p>
+                              <p className="text-[10px] text-slate-500 flex items-center gap-1 mt-0.5">
+                                <Phone className="w-2.5 h-2.5 text-slate-400" />
+                                {p.mobile || 'No Mobile'} • Blood: {p.bloodGroup || 'O+'}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <span className="font-mono text-[10px] font-bold bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded border border-indigo-200 block">
+                              {p.uhid || 'UHID'}
+                            </span>
+                            <span className="text-[9px] text-emerald-600 font-bold mt-0.5 block">
+                              + Autofill
+                            </span>
+                          </div>
+                        </div>
+                      ))
+                    )}
+
+                    <div
+                      onClick={() => setShowPatientDropdown(false)}
+                      className="p-2 bg-slate-50 hover:bg-slate-100 rounded-lg text-slate-600 text-xs font-semibold cursor-pointer border-t border-slate-100 flex items-center justify-between"
+                    >
+                      <span>Keep "<strong>{emergencyName || 'Custom'}</strong>" as manual entry</span>
+                      <span className="text-[10px] text-blue-600 font-bold">Done ✓</span>
+                    </div>
+                  </div>
+                )}
               </div>
+
               <div>
-                <label className="block font-bold text-slate-700 mb-1">Mobile / Contact *</label>
-                <input required value={emergencyMobile} onChange={(e) => setEmergencyMobile(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5" placeholder="Contact number" />
+                <label className="block font-bold text-slate-700 mb-1">Mobile / Contact (10 digits) *</label>
+                <input
+                  required
+                  type="tel"
+                  maxLength={10}
+                  value={emergencyMobile}
+                  onChange={(e) => setEmergencyMobile(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 font-semibold text-slate-900"
+                  placeholder="10-digit mobile number"
+                />
               </div>
               <div>
                 <label className="block font-bold text-slate-700 mb-1">Age *</label>
-                <input required type="number" min={0} max={120} value={emergencyAge} onChange={(e) => setEmergencyAge(e.target.value ? Number(e.target.value) : '')} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5" />
+                <input
+                  required
+                  type="number"
+                  min={0}
+                  max={120}
+                  value={emergencyAge}
+                  onChange={(e) => setEmergencyAge(e.target.value ? Number(e.target.value) : '')}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 font-semibold text-slate-900"
+                  placeholder="e.g. 35"
+                />
               </div>
               <div>
                 <label className="block font-bold text-slate-700 mb-1">Gender *</label>
-                <select value={emergencyGender} onChange={(e) => setEmergencyGender(e.target.value as typeof emergencyGender)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5">
-                  <option>Male</option><option>Female</option><option>Other</option>
+                <select
+                  value={emergencyGender}
+                  onChange={(e) => setEmergencyGender(e.target.value as typeof emergencyGender)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 font-semibold text-slate-900"
+                >
+                  <option>Male</option>
+                  <option>Female</option>
+                  <option>Other</option>
                 </select>
               </div>
               <div>
                 <label className="block font-bold text-slate-700 mb-1">Blood Group *</label>
-                <select value={emergencyBloodGroup} onChange={(e) => setEmergencyBloodGroup(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5">
-                  {['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'].map((group) => <option key={group}>{group}</option>)}
+                <select
+                  value={emergencyBloodGroup}
+                  onChange={(e) => setEmergencyBloodGroup(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 font-semibold text-slate-900"
+                >
+                  {['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'].map((group) => (
+                    <option key={group}>{group}</option>
+                  ))}
                 </select>
               </div>
               <div>
                 <label className="block font-bold text-slate-700 mb-1">Assigned Nurse *</label>
-                <select required value={emergencyNurse} onChange={(e) => setEmergencyNurse(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5">
+                <select
+                  required
+                  value={emergencyNurse}
+                  onChange={(e) => setEmergencyNurse(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 font-semibold text-slate-900"
+                >
                   <option value="">Select nurse</option>
-                  {nursesList.map((nurse) => <option key={nurse.id} value={nurse.name}>{nurse.name}</option>)}
+                  {nursesList.map((nurse) => (
+                    <option key={nurse.id} value={nurse.name}>
+                      {nurse.name}
+                    </option>
+                  ))}
                 </select>
               </div>
             </div>
