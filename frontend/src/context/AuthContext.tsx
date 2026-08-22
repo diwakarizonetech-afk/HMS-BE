@@ -37,10 +37,17 @@ export function getDefaultRouteForRole(role?: string, name?: string): string {
 }
 
 
-interface AuthContextType {
+export interface LoginResult {
+  success: boolean;
+  role?: UserRole;
+  redirectPath?: string;
+  error?: string;
+}
+
+export interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
-  login: (email: string, pass: string) => Promise<{ success: boolean; role?: UserRole; redirectPath?: string; error?: string }>;
+  login: (email: string, pass: string) => Promise<LoginResult>;
   logout: () => void;
 }
 
@@ -141,7 +148,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   );
 };
 
-export const useAuth = () => {
+export const useAuth = (): AuthContextType => {
   const context = useContext(AuthContext);
   if (!context) {
     const savedUser = (() => {

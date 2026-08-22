@@ -133,23 +133,7 @@ export const LoginPage: React.FC = () => {
             ) : dbUsers.length > 0 ? (
               <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
                 {dbUsers.slice(0, 8).map((u) => {
-                  const roleStr = String(u.role || '').toLowerCase();
-                  const suggestedPw =
-                    u.email === 'admin@hms.com' || roleStr === 'admin' || roleStr === 'super_admin'
-                      ? 'admin123'
-                      : u.email === 'cashier@hms.com'
-                      ? 'cashier123'
-                      : roleStr.includes('billing')
-                      ? 'billing123'
-                      : roleStr === 'doctor'
-                      ? 'Doctor@123'
-                      : roleStr === 'reception'
-                      ? 'Reception@123'
-                      : roleStr === 'pharmacy'
-                      ? 'Pharma@123'
-                      : roleStr === 'nurse'
-                      ? 'nurse123'
-                      : 'admin123';
+                  const suggestedPw = '123456';
 
                   return (
                     <div
@@ -183,7 +167,7 @@ export const LoginPage: React.FC = () => {
               </div>
             ) : (
               <div className="py-3 text-center text-xs text-slate-300">
-                Default Super Admin: <span className="font-mono font-bold text-cyan-300">admin@hms.com</span> / <span className="font-mono font-bold text-cyan-300">admin123</span>
+                Default Super Admin: <span className="font-mono font-bold text-cyan-300">admin@hms.com</span> / <span className="font-mono font-bold text-cyan-300">123456</span>
               </div>
             )}
           </div>
